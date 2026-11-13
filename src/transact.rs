@@ -305,7 +305,7 @@ impl Ast {
                 item.cand.entry.version
             ));
             let (record, outcome) =
-                transaction::install_package(txn, &self.paths, db, &pf, origin, item.reason, &removing)?;
+                transaction::install_package(txn, &self.paths, db, &pf, origin, item.reason, &removing, self.flags.adopt)?;
             self.log.line(&format!(
                 "{} {} {} from {} ({:?})",
                 if item.old.is_some() { "upgrade" } else { "install" },

@@ -17,9 +17,9 @@ const HELP: &str = "astpkg  repository and package tools
         [--build-dir DIR] [--repo-url URL] [--key KEY]
   index DIR --name N --arch A --channel C --key KEY
                                                 sign packages, write index.toml(.sig)
-  publish RECIPES --out DIR --name N --arch A --channel C --key KEY [--build-dir DIR]
+  publish RECIPES --out DIR --name N --arch A --channel C --key KEY [--build-dir DIR] [--no-build]
                                                 build every RECIPES/*/*.recipe.toml that is not
-                                                in DIR yet, copy the recipes, write the index";
+                                                in DIR yet (--no-build: none), copy the recipes, write the index";
 
 fn sign(file: &Path, key: Option<String>) -> Result<()> {
     match key {
@@ -81,16 +81,18 @@ fn run(mut a: Args) -> Result<()> {
             let (name, arch, channel) = (a.need(&["--name"])?, a.need(&["--arch"])?, a.need(&["--channel"])?);
             let key_path = a.need(&["--key"])?;
             let build_dir = PathBuf::from(a.value(&["--build-dir"])?.unwrap_or_else(|| "/tmp/astpkg-build".into()));
+            let no_build = a.flag(&["--no-build"]);
             let [recipes] = operands::<1>(a)?;
-            publish(Path::new(&recipes), &out, &name, &arch, Channel::parse(&channel)?, Path::new(&key_path), &build_dir)?;
+            publish(Path::new(&recipes), &out, &name, &arch, Channel::parse(&channel)?, Path::new(&key_path), &build_dir, !no_build)?;
         }
         _ => return Err(Error::Usage(format!("unknown command {cmd:?}"))),
     }
     Ok(())
 }
 
-/// Build the missing packages of `recipes/NAME/NAME.recipe.toml` into `out`, then index them.
-fn publish(recipes: &Path, out: &Path, name: &str, arch: &str, channel: Channel, key_path: &Path, build_dir: &Path) -> Result<()> {
+/// Build the missing packages (unless `build` is off: then only the recipes are published) of `recipes/NAME/NAME.recipe.toml` into `out`, then index them.
+#[allow(clippy::too_many_arguments)]
+fn publish(recipes: &Path, out: &Path, name: &str, arch: &str, channel: Channel, key_path: &Path, build_dir: &Path, build: bool) -> Result<()> {
     let key = SecretKey::load(key_path)?;
     let cfg = BuildCfg::default();
     std::fs::create_dir_all(out).ctx("cannot create", out)?;
@@ -114,7 +116,7 @@ fn publish(recipes: &Path, out: &Path, name: &str, arch: &str, channel: Channel,
             continue;
         }
         let pkg = out.join(format!("{}-{}-{}.ast", recipe.name, recipe.version, recipe.revision));
-        if pkg.exists() {
+        if pkg.exists() || !build {
             println!("  skip  {}  {}", recipe.name, recipe.version);
         } else {
             println!("  build  {}  {}", recipe.name, recipe.version);

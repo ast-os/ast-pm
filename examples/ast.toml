@@ -16,6 +16,8 @@ prefer_binary = false
 compression = "zstd"
 
 [build]
+# Where to look for source archives before upstream (file:// or https://), by file name.
+# mirrors = ["file:///var/cache/ast/distfiles"]
 # Set to false on devices that must never compile packages.
 enabled = true
 # Capped at runtime by CPU count and available RAM.

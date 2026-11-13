@@ -33,6 +33,7 @@ const OPTIONS: &[[&str; 2]] = &[
     ["--root DIR", "work inside DIR instead of /"],
     ["--accept-untested", "do not ask about untested system components"],
     ["--accept-foreign", "do not ask about other-channel dependencies"],
+    ["--adopt", "replace files that belong to no package (bootstrap)"],
 ];
 
 fn help() -> String {
@@ -246,6 +247,7 @@ fn dispatch(mut a: Args) -> Result<i32> {
     let flags = Flags {
         yes: a.flag(&["-y"]),
         binary: a.flag(&["-b"]),
+        adopt: a.flag(&["--adopt"]),
         accept_untested: a.flag(&["--accept-untested"]),
         accept_foreign: a.flag(&["--accept-foreign"]),
         dry_run: a.flag(&["--dry-run"]),

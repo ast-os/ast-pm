@@ -35,28 +35,93 @@ pub struct SourceSpec {
     pub strip: usize,
 }
 
-/// Build scripts. Each phase is a shell script run with `sh -e` in this
-/// order: `prepare`, `build`, `install`. All are optional but at least one
-/// must exist. Whatever ends up in `$DESTDIR` is the package.
+/// How a package is built. A `style` supplies the usual `build` and `install` scripts; a script
+/// written in the recipe replaces the one of the style. The phases run in this order, each as
+/// `sh -e` in the unpacked source: `prepare`, `build`, `install`, `fixup`. Whatever ends up
+/// in `$DESTDIR` is the package.
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct BuildSpec {
+    /// `gnu` (configure, make), `cmake`, `meson` or `cargo`.
+    #[serde(default)]
+    pub style: Option<Style>,
+    /// Extra arguments for configure, cmake, meson or cargo, written as shell words.
+    #[serde(default)]
+    pub configure: Vec<String>,
+    /// Extra arguments for make or ninja.
+    #[serde(default)]
+    pub make: Vec<String>,
+    /// Extra arguments for `make install`.
+    #[serde(default)]
+    pub install_args: Vec<String>,
+    /// Build in a separate `build` directory (gnu style; gcc, binutils and glibc want it).
+    #[serde(default)]
+    pub out_of_tree: bool,
+    /// The programs a cargo package installs into `/usr/bin`.
+    #[serde(default)]
+    pub bins: Vec<String>,
     /// Runs first: apply patches, generate files, ...
     #[serde(default)]
     pub prepare: Option<String>,
     /// The main build step.
     #[serde(default)]
     pub build: Option<String>,
-    /// Runs last: copy results into `$DESTDIR`.
+    /// Copies the results into `$DESTDIR`.
     #[serde(default)]
     pub install: Option<String>,
+    /// Runs last, after the install: tidy up inside `$DESTDIR`.
+    #[serde(default)]
+    pub fixup: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum Style {
+    Gnu,
+    Cmake,
+    Meson,
+    Cargo,
 }
 
 impl BuildSpec {
-    pub fn phases(&self) -> Vec<(&'static str, &str)> {
-        [("prepare", &self.prepare), ("build", &self.build), ("install", &self.install)]
-            .into_iter()
-            .filter_map(|(n, s)| s.as_deref().filter(|t| !t.trim().is_empty()).map(|t| (n, t)))
-            .collect()
+    /// The scripts to run, in order: `(phase, script)`.
+    pub fn phases(&self) -> Vec<(&'static str, String)> {
+        let args = |v: &[String]| if v.is_empty() { String::new() } else { format!(" {}", v.join(" ")) };
+        let (configure, make, inst) = (args(&self.configure), args(&self.make), args(&self.install_args));
+        let (mut build, mut install) = (None, None);
+        match self.style {
+            Some(Style::Gnu) => {
+                let (enter, dots) = if self.out_of_tree { ("mkdir -p build\ncd build\n", "..") } else { ("", ".") };
+                build = Some(format!(
+                    "{enter}{dots}/configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var{configure}\nmake -j\"$JOBS\"{make}\n"
+                ));
+                install = Some(format!("{}make DESTDIR=\"$DESTDIR\" install{inst}\n", if self.out_of_tree { "cd build\n" } else { "" }));
+            }
+            Some(Style::Cmake) => {
+                build = Some(format!(
+                    "cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release{configure}\ncmake --build build -j\"$JOBS\"{make}\n"
+                ));
+                install = Some("DESTDIR=\"$DESTDIR\" cmake --install build\n".to_string());
+            }
+            Some(Style::Meson) => {
+                build = Some(format!("meson setup build --prefix=/usr --buildtype=release{configure}\nninja -C build -j\"$JOBS\"{make}\n"));
+                install = Some("DESTDIR=\"$DESTDIR\" ninja -C build install\n".to_string());
+            }
+            Some(Style::Cargo) => {
+                build = Some(format!("cargo build --release --locked{configure}\n"));
+                install = Some(self.bins.iter().map(|b| format!("install -Dm755 target/release/{b} \"$DESTDIR/usr/bin/{b}\"\n")).collect());
+            }
+            None => {}
+        }
+        let pick = |own: &Option<String>, default: Option<String>| own.clone().or(default);
+        [
+            ("prepare", self.prepare.clone()),
+            ("build", pick(&self.build, build)),
+            ("install", pick(&self.install, install)),
+            ("fixup", self.fixup.clone()),
+        ]
+        .into_iter()
+        .filter_map(|(n, s)| s.filter(|t| !t.trim().is_empty()).map(|t| (n, t)))
+        .collect()
     }
 }
 
@@ -166,7 +231,7 @@ impl Recipe {
         }
         if self.build.phases().is_empty() {
             return Err(Error::Parse(format!(
-                "recipe {}: [build] needs at least one non-empty script (`prepare`, `build` or `install`)",
+                "recipe {}: [build] needs a `style` or at least one non-empty script (`prepare`, `build`, `install` or `fixup`)",
                 self.name
             )));
         }
@@ -236,15 +301,46 @@ pub fn build_package(job: &BuildJob) -> Result<PathBuf> {
     }
 }
 
+/// The source archive: from the cache of earlier builds, else from a mirror, else from upstream.
+/// A downloaded archive is kept in `sources/` next to the build directory, named by its checksum.
+fn fetch_source(job: &BuildJob, url: &str, dest: &Path) -> Result<()> {
+    let r = job.recipe;
+    let expected = job.verify_checksums.then_some(r.source.sha256.as_str());
+    let cache = job.build_dir.parent().map(|p| p.join("sources"));
+    let cached = cache.as_ref().map(|c| c.join(&r.source.sha256));
+    if let Some(c) = cached.as_ref().filter(|c| c.is_file())
+        && crate::security::sha256_file(c).is_ok_and(|h| h == r.source.sha256)
+        && std::fs::copy(c, dest).is_ok()
+    {
+        return Ok(());
+    }
+    let file_name = url.rsplit('/').next().unwrap_or("source");
+    let mirrors = job.cfg.mirrors.iter().map(|m| format!("{}/{file_name}", m.trim_end_matches('/')));
+    let mut last = None;
+    for u in mirrors.chain(std::iter::once(url.to_string())) {
+        match download::download_to(&u, dest, expected, 4 << 30) {
+            Ok(()) => {
+                if let Some(c) = cached.as_ref().filter(|_| expected.is_some()) {
+                    let _ = std::fs::create_dir_all(c.parent().unwrap_or(c));
+                    let _ = std::fs::copy(dest, c);
+                }
+                return Ok(());
+            }
+            Err(e) => last = Some(e),
+        }
+    }
+    Err(match last {
+        Some(Error::Verify(m)) => Error::Verify(format!("source of {}: {m}", r.name)),
+        Some(e) => e,
+        None => Error::Network(format!("no source for {}", r.name)),
+    })
+}
+
 fn build_inner(job: &BuildJob, work: &Path, log_path: &Path) -> Result<PathBuf> {
     let r = job.recipe;
     let url = r.source_url(job.repo_url)?;
     let src_file = work.join("source.archive");
-    download::download_to(&url, &src_file, job.verify_checksums.then_some(r.source.sha256.as_str()), 4 << 30)
-        .map_err(|e| match e {
-            Error::Verify(m) => Error::Verify(format!("source of {}: {m}", r.name)),
-            other => other,
-        })?;
+    fetch_source(job, &url, &src_file)?;
     let src_dir = work.join("src");
     let dest_dir = work.join("dest");
     for d in [&src_dir, &dest_dir] {
@@ -261,6 +357,7 @@ fn build_inner(job: &BuildJob, work: &Path, log_path: &Path) -> Result<PathBuf> 
         eprintln!("warning: build scripts of {} run WITHOUT sandbox", r.name);
     }
     for (phase, script) in r.build.phases() {
+        let script = script.as_str();
         let mut log = std::fs::OpenOptions::new().append(true).open(log_path).ctx("cannot open build log", log_path)?;
         let _ = writeln!(log, "==> {phase}");
         let mut cmd = match &sandbox {
@@ -723,5 +820,40 @@ build = "true"
         r2.arch = vec!["x86_64".into()];
         let job2 = BuildJob { recipe: &r2, ..job2 };
         assert!(matches!(build_package(&job2), Err(Error::Build(_))));
+    }
+
+    fn recipe(build: &str) -> Recipe {
+        Recipe::parse(&format!(
+            "[package]\nname = \"x\"\nversion = \"1\"\narch = [\"x86_64\"]\n[source]\nurl = \"https://e/x.tar.gz\"\nsha256 = \"{}\"\n[build]\n{build}",
+            "0".repeat(64)
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn styles_supply_the_usual_scripts() {
+        let r = recipe("style = \"gnu\"\nconfigure = [\"--disable-static\"]\nmake = [\"V=1\"]\n");
+        let p = r.build.phases();
+        assert_eq!(p.iter().map(|(n, _)| *n).collect::<Vec<_>>(), ["build", "install"]);
+        assert!(p[0].1.contains("./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --disable-static"));
+        assert!(p[0].1.contains("make -j\"$JOBS\" V=1") && p[1].1.contains("make DESTDIR=\"$DESTDIR\" install"));
+        let m = recipe("style = \"meson\"\nconfigure = [\"-Dfoo=true\"]\n").build.phases();
+        assert!(m[0].1.contains("meson setup build --prefix=/usr --buildtype=release -Dfoo=true") && m[1].1.contains("ninja -C build install"));
+        let c = recipe("style = \"cargo\"\nbins = [\"tool\"]\n").build.phases();
+        assert!(c[1].1.contains("install -Dm755 target/release/tool"));
+    }
+
+    #[test]
+    fn out_of_tree_builds_enter_the_build_directory_in_both_phases() {
+        let p = recipe("style = \"gnu\"\nout_of_tree = true\n").build.phases();
+        assert!(p[0].1.starts_with("mkdir -p build\ncd build\n../configure"));
+        assert!(p[1].1.starts_with("cd build\nmake"));
+    }
+
+    #[test]
+    fn own_scripts_replace_the_style_and_a_fixup_runs_last() {
+        let p = recipe("style = \"gnu\"\nprepare = \"patch -p1 < x.patch\"\ninstall = \"make install-strip DESTDIR=$DESTDIR\"\nfixup = \"rm -rf $DESTDIR/usr/share/doc\"\n").build.phases();
+        assert_eq!(p.iter().map(|(n, _)| *n).collect::<Vec<_>>(), ["prepare", "build", "install", "fixup"]);
+        assert!(p[2].1.contains("install-strip") && !p[2].1.contains("make DESTDIR"));
     }
 }

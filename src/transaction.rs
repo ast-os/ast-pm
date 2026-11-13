@@ -60,6 +60,7 @@ pub fn install_package(
     origin: InstallOrigin,
     reason: Reason,
     removing: &[PackageName],
+    adopt: bool,
 ) -> Result<(InstalledPackage, InstallOutcome)> {
     let meta = &pf.meta;
     let name = &meta.name;
@@ -106,7 +107,7 @@ pub fn install_package(
                             e.path
                         )));
                     }
-                } else if exists && !config_set.contains(&e.path) {
+                } else if exists && !adopt && !config_set.contains(&e.path) {
                     return Err(Error::Conflict(format!(
                         "{name}: /{} already exists and belongs to no package; refusing to overwrite it (move it away first)",
                         e.path

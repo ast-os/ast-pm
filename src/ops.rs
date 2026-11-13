@@ -29,6 +29,8 @@ pub struct Flags {
     pub accept_foreign: bool,
     /// Use ready-made binary packages only (`-b`); the default builds from source.
     pub binary: bool,
+    /// Replace files that belong to no package (building the base over the temporary tools).
+    pub adopt: bool,
 }
 
 pub struct Ast {

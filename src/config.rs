@@ -87,10 +87,13 @@ pub struct BuildCfg {
     /// uid/gid the build script runs as when ast itself runs as root.
     pub uid: u32,
     pub gid: u32,
+    /// Places to look for source archives before the upstream address (`file://` or `https://`);
+    /// the archive is looked up by its file name there.
+    pub mirrors: Vec<String>,
 }
 impl Default for BuildCfg {
     fn default() -> Self {
-        BuildCfg { sandbox: SandboxMode::Required, enabled: true, jobs: 2, directory: "/var/cache/ast/build".into(), uid: 65534, gid: 65534 }
+        BuildCfg { sandbox: SandboxMode::Required, enabled: true, jobs: 2, directory: "/var/cache/ast/build".into(), uid: 65534, gid: 65534, mirrors: vec![] }
     }
 }
 

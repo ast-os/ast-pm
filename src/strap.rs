@@ -27,6 +27,7 @@ pub fn run(mut a: Args, ui: &mut dyn Ui) -> Result<i32> {
         accept_untested: a.flag(&["--accept-untested"]),
         accept_foreign: false,
         binary: false,
+        adopt: false,
         dry_run: false,
         jobs,
     };

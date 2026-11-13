@@ -196,16 +196,16 @@ fn tampered_or_unsigned_package_is_rejected_before_unpacking() {
 
 #[test]
 fn community_repo_key_cannot_sign_for_official_repo() {
-    // Package in `ast` signed with the key of `space`: rejected, because each repo has its own key.
+    // Package in `ast` signed with the key of `extra`: rejected, because each repo has its own key.
     let mut env = Env::new();
     let ast = env.add_repo("ast", 100);
-    let space = env.add_repo("space", 50);
+    let extra = env.add_repo("extra", 50);
     env.add(ast, &pkg("official", "1.0"));
     env.publish(ast);
-    env.publish(space);
+    env.publish(extra);
     let m = env.ast();
     m.update(&mut TestUi::new()).unwrap();
-    ast::repogen::sign_package(&env.repos[ast].dir.join("official-1.0-1.ast"), &env.repos[space].key).unwrap();
+    ast::repogen::sign_package(&env.repos[ast].dir.join("official-1.0-1.ast"), &env.repos[extra].key).unwrap();
     let e = m.install(&["official".into()], &mut TestUi::new()).unwrap_err();
     assert!(matches!(e, Error::Verify(_)), "{e}");
 }
@@ -539,21 +539,21 @@ fn upgrade_failure_leaves_old_version_intact() {
 fn repository_priority_selects_the_source_repo() {
     let mut env = Env::new();
     let ast = env.add_repo("ast", 100);
-    let space = env.add_repo("space", 50);
+    let extra = env.add_repo("extra", 50);
     env.add(ast, &pkg("tool", "1.0"));
-    env.add(space, &pkg("tool", "9.0"));
-    env.add(space, &pkg("only-space", "1.0"));
+    env.add(extra, &pkg("tool", "9.0"));
+    env.add(extra, &pkg("only-extra", "1.0"));
     env.publish(ast);
-    env.publish(space);
+    env.publish(extra);
     let m = env.ast();
     m.update(&mut TestUi::new()).unwrap();
-    m.install(&["tool".into(), "only-space".into()], &mut TestUi::new()).unwrap();
+    m.install(&["tool".into(), "only-extra".into()], &mut TestUi::new()).unwrap();
     assert_eq!(env.read("usr/bin/tool"), "tool 1.0\n");
     assert!(env.read("var/lib/ast/db/installed/tool.toml").contains("repo = \"ast\""));
-    assert!(env.read("var/lib/ast/db/installed/only-space.toml").contains("repo = \"space\""));
+    assert!(env.read("var/lib/ast/db/installed/only-extra.toml").contains("repo = \"extra\""));
     let mut ui = TestUi::new();
     m.info("tool", &mut ui).unwrap();
-    assert!(ui.all().contains("others") && ui.all().contains("space 9.0"), "{}", ui.all());
+    assert!(ui.all().contains("others") && ui.all().contains("extra 9.0"), "{}", ui.all());
 }
 
 #[test]
@@ -740,11 +740,11 @@ fn symlink_in_target_root_cannot_redirect_writes_outside() {
 fn foreign_env() -> Env {
     let mut env = Env::new();
     let ast = env.add_repo_ch("ast", 100, Channel::Stable);
-    let edge = env.add_repo_ch("space-edge", 50, Channel::Edge);
+    let edge = env.add_repo_ch("extra-edge", 50, Channel::Edge);
     env.add(ast, &pkg("zlib", "1.3.1"));
     env.add(edge, &pkg("zlib", "1.4.0"));
-    env.add(edge, &pkg("telegram-desktop", "5.0").deps(&["zlib >= 1.3"]));
-    env.add(edge, &pkg("telegram-desktop", "5.1").deps(&["zlib >= 1.3"]));
+    env.add(edge, &pkg("toolbox", "5.0").deps(&["zlib >= 1.3"]));
+    env.add(edge, &pkg("toolbox", "5.1").deps(&["zlib >= 1.3"]));
     env.add(edge, &pkg("tg-new", "1.0").deps(&["zlib >= 1.4"]));
     env.publish(ast);
     env.publish(edge);
@@ -757,22 +757,22 @@ fn install_from_another_channel_with_name_repo_version_syntax() {
     let m = env.ast();
     let mut ui = TestUi::new();
     m.update(&mut ui).unwrap();
-    assert!(ui.all().contains("space-edge") && ui.all().contains("used only via"), "{}", ui.all());
+    assert!(ui.all().contains("extra-edge") && ui.all().contains("used only via"), "{}", ui.all());
 
     // not visible without naming the repository: the system is on stable
-    let e = m.install(&["telegram-desktop".into()], &mut TestUi::new()).unwrap_err();
+    let e = m.install(&["toolbox".into()], &mut TestUi::new()).unwrap_err();
     assert!(matches!(e, Error::NotFound(_)), "{e}");
     assert_eq!(m.search("telegram", &mut TestUi::new()).unwrap(), 0);
 
     // explicit repository, latest version ('@*'); dependency zlib comes from the stable repo
     let mut ui = TestUi::new();
-    m.install(&["telegram-desktop:space-edge@*".into()], &mut ui).unwrap();
-    assert_eq!(env.read("usr/bin/telegram-desktop"), "telegram-desktop 5.1\n");
+    m.install(&["toolbox:extra-edge@*".into()], &mut ui).unwrap();
+    assert_eq!(env.read("usr/bin/toolbox"), "toolbox 5.1\n");
     assert_eq!(env.read("usr/bin/zlib"), "zlib 1.3.1\n", "dependencies stay on the current channel when they can");
     assert!(ui.asked.is_empty(), "naming the package is the consent: {:?}", ui.asked);
     let all = ui.all();
     assert!(all.contains("outside the current channel (stable)") && all.contains("edge channel"), "{all}");
-    assert!(env.read("var/lib/ast/db/installed/telegram-desktop.toml").contains("repo = \"space-edge\""));
+    assert!(env.read("var/lib/ast/db/installed/toolbox.toml").contains("repo = \"extra-edge\""));
     assert!(env.read("var/lib/ast/db/installed/zlib.toml").contains("repo = \"ast\""));
 
     // `ast -u` never silently moves anything between channels
@@ -786,17 +786,17 @@ fn exact_version_and_omitted_version() {
     let env = foreign_env();
     let m = env.ast();
     m.update(&mut TestUi::new()).unwrap();
-    m.install(&["telegram-desktop:space-edge@5.0".into()], &mut TestUi::new()).unwrap();
-    assert_eq!(env.read("usr/bin/telegram-desktop"), "telegram-desktop 5.0\n");
+    m.install(&["toolbox:extra-edge@5.0".into()], &mut TestUi::new()).unwrap();
+    assert_eq!(env.read("usr/bin/toolbox"), "toolbox 5.0\n");
     // no '@': latest; replaces the installed 5.0 with 5.1 from the same repository
-    m.install(&["telegram-desktop:space-edge".into()], &mut TestUi::new()).unwrap();
-    assert_eq!(env.read("usr/bin/telegram-desktop"), "telegram-desktop 5.1\n");
+    m.install(&["toolbox:extra-edge".into()], &mut TestUi::new()).unwrap();
+    assert_eq!(env.read("usr/bin/toolbox"), "toolbox 5.1\n");
     // asking again changes nothing
     let mut ui = TestUi::new();
-    m.install(&["telegram-desktop:space-edge@*".into()], &mut ui).unwrap();
+    m.install(&["toolbox:extra-edge@*".into()], &mut ui).unwrap();
     assert!(ui.all().contains("installed ("), "{}", ui.all());
-    let e = m.install(&["telegram-desktop:space-edge@9.9".into()], &mut TestUi::new()).unwrap_err();
-    assert!(e.to_string().contains("no version of telegram-desktop"), "{e}");
+    let e = m.install(&["toolbox:extra-edge@9.9".into()], &mut TestUi::new()).unwrap_err();
+    assert!(e.to_string().contains("no version of toolbox"), "{e}");
 }
 
 #[test]
@@ -806,7 +806,7 @@ fn dependencies_from_another_channel_need_their_own_consent() {
     m.update(&mut TestUi::new()).unwrap();
     // tg-new needs zlib >= 1.4, which exists only in the edge repository
     let mut ui = TestUi::new();
-    let e = m.install(&["tg-new:space-edge".into()], &mut ui).unwrap_err();
+    let e = m.install(&["tg-new:extra-edge".into()], &mut ui).unwrap_err();
     assert!(matches!(e, Error::Aborted), "{e}");
     assert_eq!(ui.asked.len(), 1);
     assert!(ui.asked[0].contains("dependencies"), "{:?}", ui.asked);
@@ -815,7 +815,7 @@ fn dependencies_from_another_channel_need_their_own_consent() {
 
     // a "yes" answer is required; --yes alone is not enough
     let mut ui = TestUi::answering(&[true]);
-    m.install(&["tg-new:space-edge".into()], &mut ui).unwrap();
+    m.install(&["tg-new:extra-edge".into()], &mut ui).unwrap();
     assert_eq!(env.read("usr/bin/zlib"), "zlib 1.4.0\n");
 
     // the explicit flag works non-interactively
@@ -823,7 +823,7 @@ fn dependencies_from_another_channel_need_their_own_consent() {
     let m = env.ast_with(Flags { yes: true, accept_foreign: true, ..Default::default() });
     m.update(&mut TestUi::new()).unwrap();
     let mut ui = TestUi::new();
-    m.install(&["tg-new:space-edge".into()], &mut ui).unwrap();
+    m.install(&["tg-new:extra-edge".into()], &mut ui).unwrap();
     assert!(ui.asked.is_empty());
     assert!(ui.warns.iter().any(|w| w.contains("--accept-foreign")));
     assert!(env.exists("usr/bin/tg-new"));
@@ -836,30 +836,30 @@ fn explicit_repo_must_exist_be_enabled_and_have_the_package() {
     m.update(&mut TestUi::new()).unwrap();
     let e = m.install(&["tg-new:nope".into()], &mut TestUi::new()).unwrap_err();
     assert!(matches!(e, Error::NotFound(_)) && e.to_string().contains("not defined"), "{e}");
-    let e = m.install(&["ghost:space-edge".into()], &mut TestUi::new()).unwrap_err();
-    assert!(matches!(e, Error::NotFound(_)) && e.to_string().contains("in repository space-edge"), "{e}");
+    let e = m.install(&["ghost:extra-edge".into()], &mut TestUi::new()).unwrap_err();
+    assert!(matches!(e, Error::NotFound(_)) && e.to_string().contains("in repository extra-edge"), "{e}");
     // disabled repositories are never used implicitly
-    m.repo_set_enabled("space-edge", false, &mut TestUi::new()).unwrap();
+    m.repo_set_enabled("extra-edge", false, &mut TestUi::new()).unwrap();
     let m = ast::ops::Ast::open(&env.root, Flags { yes: true, ..Default::default() }).unwrap();
-    let e = m.install(&["tg-new:space-edge".into()], &mut TestUi::new()).unwrap_err();
-    assert!(matches!(e, Error::Config(_)) && e.to_string().contains("ast repo enable space-edge"), "{e}");
+    let e = m.install(&["tg-new:extra-edge".into()], &mut TestUi::new()).unwrap_err();
+    assert!(matches!(e, Error::Config(_)) && e.to_string().contains("ast repo enable extra-edge"), "{e}");
     assert!(m.install(&["tg-new:".into()], &mut TestUi::new()).is_err());
 }
 
 #[test]
 fn explicit_repo_inside_the_current_channel_needs_no_special_consent() {
-    // `name:space` where space is an ordinary active repository of the same channel
+    // `name:extra` where extra is an ordinary active repository of the same channel
     let mut env = Env::new();
     let ast = env.add_repo("ast", 100);
-    let space = env.add_repo("space", 50);
+    let extra = env.add_repo("extra", 50);
     env.add(ast, &pkg("tool", "1.0"));
-    env.add(space, &pkg("tool", "9.0"));
+    env.add(extra, &pkg("tool", "9.0"));
     env.publish(ast);
-    env.publish(space);
+    env.publish(extra);
     let m = env.ast();
     m.update(&mut TestUi::new()).unwrap();
     let mut ui = TestUi::new();
-    m.install(&["tool:space".into()], &mut ui).unwrap();
+    m.install(&["tool:extra".into()], &mut ui).unwrap();
     assert_eq!(env.read("usr/bin/tool"), "tool 9.0\n");
     assert!(!ui.all().contains("outside the current channel"));
 }

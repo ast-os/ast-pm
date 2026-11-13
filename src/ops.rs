@@ -49,12 +49,7 @@ pub fn init(root: &Path) -> Result<Vec<PathBuf>> {
         mkdir_private(d, 0o755)?;
     }
     let mut created = vec![];
-    let arch = match std::env::consts::ARCH {
-        "aarch64" => "aarch64",
-        _ => "x86_64",
-    };
-    let ast = crate::config::DEFAULT_AST_TOML.replace("architecture = \"aarch64\"", &format!("architecture = \"{arch}\""));
-    let repos = crate::config::DEFAULT_REPOS_TOML.replace("/aarch64/", &format!("/{arch}/"));
+    let (ast, repos) = (crate::config::DEFAULT_AST_TOML, crate::config::DEFAULT_REPOS_TOML);
     for (p, text) in [(paths.ast_toml(), ast), (paths.repos_toml(), repos)] {
         if !p.exists() {
             std::fs::write(&p, text).ctx("cannot write", &p)?;

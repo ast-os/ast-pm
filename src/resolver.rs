@@ -517,14 +517,14 @@ mod tests {
     #[test]
     fn repository_priority_beats_version() {
         let c = cat(vec![
-            cand("space", 50, entry("tool", "9.0", &[])),
+            cand("extra", 50, entry("tool", "9.0", &[])),
             cand("ast", 100, entry("tool", "1.0", &[])),
         ]);
         let plan = Resolver::new(&c, &Db::default(), opts()).resolve_install(&[req("tool", false)]).unwrap();
         assert_eq!(plan.install[0].cand.repo, "ast");
         // constraint can still force the lower-priority repo
         let plan = Resolver::new(&c, &Db::default(), opts()).resolve_install(&[req("tool >= 5", false)]).unwrap();
-        assert_eq!(plan.install[0].cand.repo, "space");
+        assert_eq!(plan.install[0].cand.repo, "extra");
         // same priority: highest version wins
         let c = cat(vec![cand("a", 10, entry("t", "1", &[])), cand("b", 10, entry("t", "2", &[]))]);
         let plan = Resolver::new(&c, &Db::default(), opts()).resolve_install(&[req("t", false)]).unwrap();
@@ -579,15 +579,15 @@ mod tests {
     fn explicit_repo_request_uses_only_that_repo_and_replaces_installed() {
         let c = cat(vec![
             cand("ast", 100, entry("tg", "1.0", &[])),
-            cand("space-edge", 50, entry("tg", "2.0", &["dep"])),
+            cand("extra-edge", 50, entry("tg", "2.0", &["dep"])),
             cand("ast", 100, entry("dep", "1", &[])),
         ]);
-        let r = Request { dep: Dependency::parse("tg").unwrap(), binary_only: false, repo: Some("space-edge".into()) };
+        let r = Request { dep: Dependency::parse("tg").unwrap(), binary_only: false, repo: Some("extra-edge".into()) };
         let plan = Resolver::new(&c, &Db::default(), opts()).resolve_install(std::slice::from_ref(&r)).unwrap();
-        assert_eq!(plan.install.iter().find(|i| i.name().as_str() == "tg").unwrap().cand.repo, "space-edge");
+        assert_eq!(plan.install.iter().find(|i| i.name().as_str() == "tg").unwrap().cand.repo, "extra-edge");
         // dependencies still come from the normal repositories
         assert_eq!(plan.install.iter().find(|i| i.name().as_str() == "dep").unwrap().cand.repo, "ast");
-        // installed 1.0 from ast is replaced by 2.0 from space-edge
+        // installed 1.0 from ast is replaced by 2.0 from extra-edge
         let mut db = Db::default();
         db.insert(installed("tg", "1.0", &[], Reason::Explicit));
         let plan = Resolver::new(&c, &db, opts()).resolve_install(std::slice::from_ref(&r)).unwrap();
@@ -598,9 +598,9 @@ mod tests {
         db.insert(installed("dep", "1", &[], Reason::Dependency));
         assert!(Resolver::new(&c, &db, opts()).resolve_install(&[r]).unwrap().install.is_empty());
         // unknown repo / package absent from the repo
-        let r = Request { dep: Dependency::parse("dep").unwrap(), binary_only: false, repo: Some("space-edge".into()) };
+        let r = Request { dep: Dependency::parse("dep").unwrap(), binary_only: false, repo: Some("extra-edge".into()) };
         let e = Resolver::new(&c, &Db::default(), opts()).resolve_install(&[r]).unwrap_err();
-        assert!(e.to_string().contains("not found in repository space-edge"), "{e}");
+        assert!(e.to_string().contains("not found in repository extra-edge"), "{e}");
     }
 
     #[test]

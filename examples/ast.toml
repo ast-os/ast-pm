@@ -1,8 +1,8 @@
 # ast main configuration (/etc/ast/ast.toml)
 
 [core]
-# Target architecture: aarch64 or x86_64.
-architecture = "aarch64"
+# Target architecture.
+architecture = "x86_64"
 # System channel: "stable" or "edge". Never changed automatically.
 channel = "stable"
 

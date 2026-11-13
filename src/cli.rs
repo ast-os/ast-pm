@@ -340,7 +340,7 @@ mod tests {
     #[test]
     fn only_system_changes_need_root() {
         assert!(needs_root("install", &["pfetch"]) && needs_root("upgrade", &[]) && needs_root("channel", &["edge"]));
-        assert!(needs_root("repo", &["enable", "space"]) && needs_root("clean", &[]));
+        assert!(needs_root("repo", &["enable", "extra"]) && needs_root("clean", &[]));
         for (c, o) in [("list", vec![]), ("search", vec!["x"]), ("info", vec!["x"]), ("verify", vec![]), ("channel", vec![]), ("repo", vec![]), ("repo", vec!["list"])] {
             assert!(!needs_root(c, &o), "{c} {o:?}");
         }

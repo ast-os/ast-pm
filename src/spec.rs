@@ -51,16 +51,16 @@ mod tests {
 
     #[test]
     fn target_spec_syntax() {
-        let s = parse_spec("telegram-desktop:space-edge@*").unwrap();
-        assert_eq!((s.name.as_str(), s.repo.as_deref(), s.version.clone()), ("telegram-desktop", Some("space-edge"), None));
+        let s = parse_spec("toolbox:extra-edge@*").unwrap();
+        assert_eq!((s.name.as_str(), s.repo.as_deref(), s.version.clone()), ("toolbox", Some("extra-edge"), None));
         assert_eq!(parse_spec("nginx").unwrap(), TargetSpec { name: "nginx".into(), repo: None, version: None });
-        assert_eq!(parse_spec("nginx:space").unwrap().repo.as_deref(), Some("space"));
+        assert_eq!(parse_spec("nginx:extra").unwrap().repo.as_deref(), Some("extra"));
         assert_eq!(parse_spec("nginx@latest").unwrap().version, None);
         let v = parse_spec("nginx:ast@1.28.0").unwrap().version.unwrap();
         assert_eq!((v.0, v.1.as_str()), (Op::Eq, "1.28.0"));
         let v = parse_spec("nginx@>=1.2").unwrap().version.unwrap();
         assert_eq!((v.0, v.1.as_str()), (Op::Ge, "1.2"));
-        assert_eq!(parse_spec("nginx-bin:space-edge@*").unwrap().name, "nginx-bin");
+        assert_eq!(parse_spec("nginx-bin:extra-edge@*").unwrap().name, "nginx-bin");
         for bad in ["", ":repo", "nginx:", "nginx@", "nginx:Bad Repo", "nginx@1/2", "nginx:a:b"] {
             assert!(parse_spec(bad).is_err(), "{bad:?} should be rejected");
         }

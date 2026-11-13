@@ -34,7 +34,7 @@ ast -s TEXT          search; "" lists everything
 Rare actions are words: `ast repo [enable|disable NAME]`, `ast channel [stable|edge]`,
 `ast verify [PKG...]`, `ast clean`, `ast init`.
 
-`ast -i telegram-desktop:space-edge@*` installs from another repository, even of another
+`ast -i toolbox:extra-edge@*` installs from another repository, even of another
 channel. The system channel never changes on its own.
 
 Packages marked `untested` (kernel, libc, bootloader...) are installed only after an extra

@@ -33,6 +33,10 @@ pub struct SourceSpec {
     /// Leading path components to strip from the tarball (default 1).
     #[serde(default = "one")]
     pub strip: usize,
+    /// The source is one file, not an archive: it is put in the build directory under the name
+    /// the URL ends in.
+    #[serde(default)]
+    pub plain: bool,
 }
 
 /// How a package is built. A `style` supplies the usual `build` and `install` scripts; a script
@@ -346,7 +350,12 @@ fn build_inner(job: &BuildJob, work: &Path, log_path: &Path) -> Result<PathBuf> 
     for d in [&src_dir, &dest_dir] {
         crate::util::mkdir_private(d, 0o755)?;
     }
-    extract_source(&src_file, &src_dir, r.source.strip)?;
+    if r.source.plain {
+        let name = url.rsplit('/').next().filter(|n| !n.is_empty()).ok_or_else(|| Error::Build(format!("no file name in {url}")))?;
+        std::fs::copy(&src_file, src_dir.join(name)).ctx("cannot copy", &src_file)?;
+    } else {
+        extract_source(&src_file, &src_dir, r.source.strip)?;
+    }
 
     if crate::util::is_root() {
         chown_tree(work, job.cfg.uid, job.cfg.gid)?;
@@ -734,6 +743,14 @@ build = "true"
         // a recipe without any script, or with both `script` and `build`, is rejected
         assert!(Recipe::parse(&RECIPE.replace("build = \"true\"", "")).is_err());
         assert!(Recipe::parse(&RECIPE.replace("build = \"true\"", "build = \"true\"\nbuild = \"true\"")).is_err());
+    }
+
+    #[test]
+    fn a_plain_source_is_a_file() {
+        let s: SourceSpec = toml::from_str("url = \"https://x.org/cacert.pem\"\nsha256 = \"00\"\nplain = true\n").unwrap();
+        assert!(s.plain && s.strip == 1);
+        let s: SourceSpec = toml::from_str("url = \"a.tar.gz\"\nsha256 = \"00\"\n").unwrap();
+        assert!(!s.plain);
     }
 
     #[test]

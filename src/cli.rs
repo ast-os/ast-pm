@@ -31,6 +31,7 @@ const OPTIONS: &[[&str; 2]] = &[
     ["--dry-run", "show the plan, change nothing"],
     ["-j N", "build jobs"],
     ["--root DIR", "work inside DIR instead of /"],
+    ["-C, --config DIR", "read ast.toml, repos.toml and keys from DIR (default /etc/ast)"],
     ["--accept-untested", "do not ask about untested system components"],
     ["--accept-foreign", "do not ask about other-channel dependencies"],
     ["--adopt", "replace files that belong to no package (bootstrap)"],
@@ -239,6 +240,7 @@ fn dispatch(mut a: Args) -> Result<i32> {
         return Ok(0);
     }
     let root = PathBuf::from(a.value(&["--root"])?.unwrap_or_else(|| "/".into()));
+    let config = a.value(&["-C", "--config"])?.map(PathBuf::from);
     let jobs = a
         .value(&["-j", "--jobs"])?
         .map(|v| v.parse().map_err(|_| Error::Usage(format!("bad job count {v:?}"))))
@@ -285,7 +287,10 @@ fn dispatch(mut a: Args) -> Result<i32> {
         return Err(Error::Usage(format!("unknown command {cmd:?}; see ast -h")));
     }
 
-    let m = Ast::open(&root, flags)?;
+    let m = match &config {
+        Some(etc) => Ast::open_with_config(&root, etc, flags)?,
+        None => Ast::open(&root, flags)?,
+    };
     for w in m.security_warnings() {
         ui.warn(&w);
     }

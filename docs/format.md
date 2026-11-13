@@ -99,7 +99,7 @@ One table per repository, named like it (see `examples/repos.toml`).
 ## Database
 
 `/var/lib/ast/db/installed/NAME.toml`, one small file per package: `[package]` (version,
-reason, status, dependencies, OpenRC services), `[origin]` (binary or source, repository,
+reason, status, dependencies, orchid services), `[origin]` (binary or source, repository,
 checksums) and one `[files."PATH"]` table per file with its SHA-256 and mode. Changes go
 through the transaction journal, so a power cut leaves either the old or the new state.
 Cached indexes live in `db/repos/`, the journal in `db/txn/`.

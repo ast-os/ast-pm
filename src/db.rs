@@ -81,7 +81,7 @@ pub struct InstalledPackage {
     pub replaces: Vec<PackageName>,
     pub channel: Option<Channel>,
     pub status: Option<Status>,
-    /// OpenRC service names shipped by the package.
+    /// orchid service names shipped by the package.
     pub services: Vec<String>,
     pub origin: InstallOrigin,
     pub files: Vec<FileRecord>,

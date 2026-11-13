@@ -3,7 +3,7 @@
 use crate::db::{Db, InstalledPackage, Reason};
 use crate::error::{Error, Result};
 use crate::ops::{Ast, Ui};
-use crate::openrc;
+use crate::orchid;
 use crate::transaction;
 use crate::txn::Txn;
 use crate::util::table;
@@ -12,12 +12,12 @@ use crate::version::PackageName;
 impl Ast {
     pub(crate) fn warn_services_of_removal(&self, p: &InstalledPackage, ui: &mut dyn Ui) {
         for s in &p.services {
-            let st = openrc::service_state(&self.paths.root, s);
+            let st = orchid::service_state(&self.paths.root, s);
             if st.running {
-                ui.warn(&format!("!  {s}  service running: rc-service {s} stop"));
+                ui.warn(&format!("!  {s}  service running: orchid stop {s}"));
             }
-            if !st.enabled_in.is_empty() {
-                ui.warn(&format!("!  {s}  service enabled in {}: rc-update del {s}", st.enabled_in.join(", ")));
+            if st.enabled {
+                ui.warn(&format!("!  {s}  service enabled: orchid disable {s}"));
             }
         }
     }

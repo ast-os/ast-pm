@@ -114,7 +114,7 @@ impl Pkg {
         self
     }
     pub fn service(mut self, name: &str) -> Self {
-        self.files.push((format!("etc/init.d/{name}"), "#!/sbin/openrc-run\n".into(), 0o755));
+        self.files.push((format!("etc/orchid/services/{name}.toml"), "[service]\nexec = [\"/bin/true\"]\n".into(), 0o644));
         self
     }
     pub fn notice(mut self, n: &str) -> Self {
@@ -286,4 +286,20 @@ pub fn snapshot(p: &Path) -> Vec<String> {
     walk(p, p, &mut v);
     v.sort();
     v
+}
+
+/// Stand in for PID 1: a socket at `ROOT/run/orchid.sock` that answers `list` with these services
+/// running. It lives until the test process ends.
+pub fn fake_orchid(root: &std::path::Path, running: &[&str]) {
+    use std::io::{Read, Write};
+    std::fs::create_dir_all(root.join("run")).unwrap();
+    let listener = std::os::unix::net::UnixListener::bind(root.join("run/orchid.sock")).unwrap();
+    let list: String = running.iter().map(|n| format!("{n}  up  on  pid 1  1s\n")).collect();
+    std::thread::spawn(move || {
+        for mut c in listener.incoming().flatten() {
+            let mut buf = [0u8; 64];
+            let _ = c.read(&mut buf);
+            let _ = c.write_all(format!("ok\n{list}").as_bytes());
+        }
+    });
 }

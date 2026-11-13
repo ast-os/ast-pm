@@ -37,6 +37,6 @@ directory, all capabilities dropped; as an unprivileged user when `ast` runs as 
 Modes: `required`, `auto` (warn and run unsandboxed without bwrap), `none`.
 Limits: the kernel is shared; no CPU, memory or disk limits besides `jobs`.
 
-## OpenRC
+## Services
 
-`ast` never starts, stops, enables or restarts a service. It reports the commands to run.
+`ast` never starts, stops, enables or restarts a service. It reports the `orchid` commands to run.

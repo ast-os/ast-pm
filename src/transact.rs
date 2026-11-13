@@ -4,7 +4,7 @@
 use crate::build::{BuildJob, Recipe};
 use crate::db::{Db, InstallOrigin, OriginKind};
 use crate::error::{Error, Result};
-use crate::openrc;
+use crate::orchid;
 use crate::package::{Metadata, PackageFile, Status};
 use crate::repo::{self, Candidate};
 use crate::resolver::{Method, Plan, PlanItem};
@@ -333,11 +333,11 @@ impl Ast {
             v.push(format!("!  {c}  edited locally, kept; new default in {c}.astnew"));
         }
         for s in &o.services {
-            let st = openrc::service_state(&self.paths.root, s);
+            let st = orchid::service_state(&self.paths.root, s);
             if item.old.is_some() && st.running {
-                v.push(format!("!  {s}  service runs the old version: rc-service {s} restart"));
-            } else if item.old.is_none() {
-                v.push(format!("!  {s}  service not enabled: rc-update add {s} default"));
+                v.push(format!("!  {s}  service runs the old version: orchid restart {s}"));
+            } else if item.old.is_none() && !st.enabled {
+                v.push(format!("!  {s}  service not enabled: orchid enable {s}"));
             }
         }
         v

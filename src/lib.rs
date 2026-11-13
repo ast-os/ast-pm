@@ -19,7 +19,7 @@ pub mod version;
 pub mod db;
 pub mod txn;
 pub mod resolver;
-pub mod openrc;
+pub mod orchid;
 pub mod transaction;
 pub mod install;
 pub mod ops;

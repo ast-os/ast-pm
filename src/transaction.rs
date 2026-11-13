@@ -8,7 +8,7 @@
 use crate::archive::{self, Entry, EntryKind, resolve_in_root};
 use crate::db::{Db, FileKind, FileRecord, InstallOrigin, InstalledPackage, Reason, record_path};
 use crate::error::{Error, Result};
-use crate::openrc;
+use crate::orchid;
 use crate::package::PackageFile;
 use crate::security::{HashingReader, sha256_file};
 use crate::txn::Txn;
@@ -251,7 +251,7 @@ pub fn install_package(
             },
         })
         .collect();
-    let services = openrc::services_in(&files);
+    let services = orchid::services_in(&files);
     let record = InstalledPackage {
         name: meta.name.clone(),
         version: meta.version.clone(),

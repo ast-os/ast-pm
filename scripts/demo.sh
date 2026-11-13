@@ -49,7 +49,7 @@ greet() { echo "Hello, $1! (libgreet 1.0)"; }
 X
   pack ast libgreet 1.0
 
-  # --- hello: depends on libgreet, has a config file and an OpenRC service
+  # --- hello: depends on libgreet, has a config file and an orchid service
   file hello 1.0 usr/bin/hello 755 <<'X'
 #!/bin/sh
 R="$(dirname "$0")/../.."; . "$R/usr/lib/libgreet.sh"
@@ -60,9 +60,9 @@ X
   file hello 1.0 etc/hello.conf 644 <<'X'
 NAME=world
 X
-  file hello 1.0 etc/init.d/hello 755 <<'X'
-#!/sbin/openrc-run
-description="demo service"
+  file hello 1.0 etc/orchid/services/hello.toml 644 <<'X'
+[service]
+exec = ["/usr/bin/hello"]
 X
   pack ast hello 1.0 'depends = ["libgreet >= 1.0"]
 config_files = ["/etc/hello.conf"]'
@@ -232,9 +232,9 @@ X
 NAME=world
 GREETING=new-default
 X
-  file hello 1.1 etc/init.d/hello 755 <<'X'
-#!/sbin/openrc-run
-description="demo service"
+  file hello 1.1 etc/orchid/services/hello.toml 644 <<'X'
+[service]
+exec = ["/usr/bin/hello"]
 X
   pack ast hello 1.1 'depends = ["libgreet >= 1.0"]
 config_files = ["/etc/hello.conf"]'

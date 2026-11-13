@@ -32,11 +32,13 @@ fn update_search_install_verify_remove() {
     assert_eq!(m.search("nginx", &mut ui).unwrap(), 1);
     assert_eq!(m.search("no-such-thing", &mut ui).unwrap(), 0);
 
+    // orchid starts every service until an enabled directory exists; with one, a new service is not in it
+    std::fs::create_dir_all(env.path("etc/orchid/enabled")).unwrap();
     let mut ui = TestUi::new();
     m.install(&["nginx".into()], &mut ui).unwrap();
     let all = ui.all();
     assert!(all.contains("zlib") && all.contains("pcre2") && all.contains("3 to install"), "{all}");
-    assert!(all.contains("service not enabled: rc-update add nginx default"), "{all}");
+    assert!(all.contains("service not enabled: orchid enable nginx"), "{all}");
     assert_eq!(env.read("usr/bin/nginx"), "nginx 1.28.0\n");
     assert!(env.exists("usr/bin/zlib") && env.exists("usr/bin/pcre2"));
     assert!(env.exists("etc/nginx/nginx.conf"));
@@ -476,8 +478,7 @@ fn upgrade_replaces_files_preserves_user_config_and_drops_stale_files() {
     m.install(&["app".into()], &mut TestUi::new()).unwrap();
     std::fs::write(env.path("etc/app.conf"), "user edited\n").unwrap();
     // pretend the service runs
-    std::fs::create_dir_all(env.path("run/openrc/started")).unwrap();
-    std::fs::write(env.path("run/openrc/started/app"), "").unwrap();
+    fake_orchid(&env.path(""), &["app"]);
 
     env.add(r, &pkg("app", "2.0").config("/etc/app.conf", "default v2\n").file("usr/share/app/new.txt", "new\n").service("app"));
     env.publish(r);
@@ -492,7 +493,7 @@ fn upgrade_replaces_files_preserves_user_config_and_drops_stale_files() {
     assert_eq!(env.read("etc/app.conf.astnew"), "default v2\n");
     assert!(all.contains("app.conf.astnew"));
     assert!(!env.exists("usr/share/app/old.txt") && env.exists("usr/share/app/new.txt"));
-    assert!(all.contains("rc-service app restart"), "running service is reported, not restarted: {all}");
+    assert!(all.contains("orchid restart app"), "running service is reported, not restarted: {all}");
     assert!(env.read("var/lib/ast/db/installed/app.toml").contains("version = \"2.0\""));
 
     // nothing left to do
@@ -700,16 +701,15 @@ fn removal_warns_about_enabled_and_running_services() {
     let m = env.ast();
     m.update(&mut TestUi::new()).unwrap();
     m.install(&["nginx".into()], &mut TestUi::new()).unwrap();
-    std::fs::create_dir_all(env.path("etc/runlevels/default")).unwrap();
-    std::os::unix::fs::symlink("/etc/init.d/nginx", env.path("etc/runlevels/default/nginx")).unwrap();
-    std::fs::create_dir_all(env.path("run/openrc/started")).unwrap();
-    std::fs::write(env.path("run/openrc/started/nginx"), "").unwrap();
+    std::fs::create_dir_all(env.path("etc/orchid/enabled")).unwrap();
+    std::os::unix::fs::symlink("../services/nginx.toml", env.path("etc/orchid/enabled/nginx.toml")).unwrap();
+    fake_orchid(&env.path(""), &["nginx"]);
     let mut ui = TestUi::new();
     m.remove(&["nginx".into()], &mut ui).unwrap();
     let w = ui.warns.join("\n");
-    assert!(w.contains("rc-service nginx stop") && w.contains("rc-update del nginx"), "{w}");
-    // ast itself did not touch runlevels
-    assert!(std::fs::symlink_metadata(env.path("etc/runlevels/default/nginx")).is_ok());
+    assert!(w.contains("orchid stop nginx") && w.contains("orchid disable nginx"), "{w}");
+    // ast itself did not touch the enabled links
+    assert!(std::fs::symlink_metadata(env.path("etc/orchid/enabled/nginx.toml")).is_ok());
 }
 
 #[test]

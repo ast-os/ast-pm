@@ -106,6 +106,10 @@ fn publish(recipes: &Path, out: &Path, name: &str, arch: &str, channel: Channel,
             let f = f.ctx("cannot read", &dir)?.path();
             if f.to_string_lossy().ends_with(ast::build::RECIPE_SUFFIX) {
                 files.push(f);
+            } else if f.is_file() {
+                // other files of the recipe (a source archive a recipe names by a relative path) are served with it
+                let dest = out.join(f.file_name().unwrap_or_default());
+                std::fs::copy(&f, &dest).ctx("cannot copy", &f)?;
             }
         }
     }

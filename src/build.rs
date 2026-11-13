@@ -406,6 +406,8 @@ fn build_inner(job: &BuildJob, work: &Path, log_path: &Path) -> Result<PathBuf> 
             )));
         }
     }
+    // every GNU package updates this shared index; it belongs to no package
+    let _ = std::fs::remove_file(dest_dir.join("usr/share/info/dir"));
     if std::fs::read_dir(&dest_dir).ctx("cannot read", &dest_dir)?.next().is_none() {
         return Err(Error::Build(format!(
             "build of {} installed nothing into $DESTDIR (use `make install DESTDIR=\"$DESTDIR\"`)",
@@ -530,15 +532,19 @@ fn make_writable(p: &Path) {
 /// stripping `strip` leading components. Only files, dirs and symlinks are
 /// accepted and nothing may escape `dest`.
 pub fn extract_source(archive: &Path, dest: &Path, strip: usize) -> Result<()> {
-    let mut magic = [0u8; 4];
+    let mut magic = [0u8; 6];
     let mut f = File::open(archive).ctx("cannot open", archive)?;
     let n = f.read(&mut magic).ctx("cannot read", archive)?;
     drop(f);
     let f = File::open(archive).ctx("cannot open", archive)?;
     let reader: Box<dyn Read> = if n >= 2 && magic[..2] == [0x1f, 0x8b] {
         Box::new(flate2::read::GzDecoder::new(f))
-    } else if n >= 4 && magic == [0x28, 0xb5, 0x2f, 0xfd] {
+    } else if n >= 4 && magic[..4] == [0x28, 0xb5, 0x2f, 0xfd] {
         Box::new(zstd::Decoder::new(f).map_err(|e| Error::io("zstd", e))?)
+    } else if n >= 6 && magic == [0xfd, b'7', b'z', b'X', b'Z', 0] {
+        Box::new(xz2::read::XzDecoder::new(f))
+    } else if n >= 3 && &magic[..3] == b"BZh" {
+        Box::new(bzip2::read::BzDecoder::new(f))
     } else {
         Box::new(f)
     };
@@ -572,6 +578,10 @@ pub fn extract_source(archive: &Path, dest: &Path, strip: usize) -> Result<()> {
             tar::EntryType::Regular | tar::EntryType::Continuous => {
                 let mut out = File::create(&target).ctx("cannot create", &target)?;
                 std::io::copy(&mut e, &mut out).ctx("cannot write", &target)?;
+                // keep the archive's times: make would regenerate autotools files if they looked newer than their sources
+                if let Ok(t) = e.header().mtime() {
+                    let _ = out.set_modified(std::time::UNIX_EPOCH + std::time::Duration::from_secs(t));
+                }
                 std::fs::set_permissions(&target, std::fs::Permissions::from_mode(mode)).ctx("cannot chmod", &target)?;
             }
             tar::EntryType::Symlink => {
@@ -581,6 +591,19 @@ pub fn extract_source(archive: &Path, dest: &Path, strip: usize) -> Result<()> {
                     .ok_or_else(|| Error::Build(format!("symlink {rel} has no target")))?;
                 std::os::unix::fs::symlink(&l, &target).ctx("cannot create symlink", &target)?;
                 symlinks.insert(rel);
+            }
+            tar::EntryType::Link => {
+                // a hard link to a file of the same archive: named from the archive's top, like every path in it
+                let l = e
+                    .link_name()
+                    .map_err(|e| Error::Build(format!("bad link in source archive: {e}")))?
+                    .ok_or_else(|| Error::Build(format!("hard link {rel} has no target")))?
+                    .to_string_lossy()
+                    .into_owned();
+                let lc: Vec<&str> = l.split('/').filter(|c| !c.is_empty() && *c != ".").collect();
+                let first = lc.get(strip..).filter(|c| !c.is_empty()).ok_or_else(|| Error::Build(format!("hard link {rel} points outside the source")))?;
+                let to = normalize_rel(&first.join("/")).map_err(|e| Error::Build(format!("source archive: {e}")))?;
+                std::fs::hard_link(dest.join(&to), &target).ctx("cannot create hard link", &target)?;
             }
             tar::EntryType::XGlobalHeader | tar::EntryType::XHeader => {}
             other => {
@@ -855,5 +878,38 @@ build = "true"
         let p = recipe("style = \"gnu\"\nprepare = \"patch -p1 < x.patch\"\ninstall = \"make install-strip DESTDIR=$DESTDIR\"\nfixup = \"rm -rf $DESTDIR/usr/share/doc\"\n").build.phases();
         assert_eq!(p.iter().map(|(n, _)| *n).collect::<Vec<_>>(), ["prepare", "build", "install", "fixup"]);
         assert!(p[2].1.contains("install-strip") && !p[2].1.contains("make DESTDIR"));
+    }
+
+    #[test]
+    fn sources_may_be_gzip_xz_bzip2_or_zstd() {
+        use std::io::Write;
+        let mut tarball = Vec::new();
+        {
+            let mut b = tar::Builder::new(&mut tarball);
+            let mut h = tar::Header::new_gnu();
+            h.set_size(3);
+            h.set_mode(0o644);
+            h.set_cksum();
+            b.append_data(&mut h, "top/file.txt", &b"abc"[..]).unwrap();
+            b.finish().unwrap();
+        }
+        let d = tempfile::tempdir().unwrap();
+        let packed: Vec<(&str, Vec<u8>)> = vec![
+            ("gz", { let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast()); e.write_all(&tarball).unwrap(); e.finish().unwrap() }),
+            ("xz", { let mut e = xz2::write::XzEncoder::new(Vec::new(), 1); e.write_all(&tarball).unwrap(); e.finish().unwrap() }),
+            ("bz2", { let mut e = bzip2::write::BzEncoder::new(Vec::new(), bzip2::Compression::fast()); e.write_all(&tarball).unwrap(); e.finish().unwrap() }),
+            ("zst", zstd::encode_all(&tarball[..], 1).unwrap()),
+            ("tar", tarball.clone()),
+        ];
+        for (ext, bytes) in packed {
+            let f = d.path().join(format!("a.{ext}"));
+            std::fs::write(&f, bytes).unwrap();
+            let out = d.path().join(format!("out-{ext}"));
+            std::fs::create_dir(&out).unwrap();
+            extract_source(&f, &out, 1).unwrap();
+            assert_eq!(std::fs::read_to_string(out.join("file.txt")).unwrap(), "abc", "{ext}");
+            let t = std::fs::metadata(out.join("file.txt")).unwrap().modified().unwrap();
+            assert_eq!(t, std::time::UNIX_EPOCH, "{ext}: the archive's time is kept");
+        }
     }
 }

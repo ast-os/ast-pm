@@ -52,6 +52,7 @@ fn parent_dir(paths: &Paths, rel: &str) -> Result<PathBuf> {
 
 /// Install `pf` (already authenticated by the caller). `removing` lists
 /// packages that are being removed earlier in the same transaction.
+#[allow(clippy::too_many_arguments)]
 pub fn install_package(
     txn: &mut Txn,
     paths: &Paths,

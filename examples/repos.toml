@@ -1,0 +1,31 @@
+# Repositories (/etc/ast/repos.toml): one table per repository, named like it.
+# A repository is used when it is enabled and its channel is the system channel;
+# a higher priority wins. The URLs are placeholders.
+
+[ast]
+url = "https://repo.example.org/aarch64/stable"
+enabled = true
+priority = 100
+key = "ast.pub"
+channel = "stable"
+
+[ast-edge]
+url = "https://repo.example.org/aarch64/edge"
+enabled = false
+priority = 100
+key = "ast.pub"
+channel = "edge"
+
+[space]
+url = "https://repo.example.org/space/aarch64/stable"
+enabled = true
+priority = 50
+key = "space.pub"
+channel = "stable"
+
+[space-edge]
+url = "https://repo.example.org/space/aarch64/edge"
+enabled = false
+priority = 50
+key = "space.pub"
+channel = "edge"

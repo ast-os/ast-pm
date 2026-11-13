@@ -1,0 +1,12 @@
+# Metadata template for `astpkg pack`; the payload checksum is filled in.
+
+[package]
+name = "hello"
+version = "1.0"
+arch = "any"
+description = "Prints a greeting"
+license = "MIT"
+
+# Only for system components (kernel, bootloader, libc, ...):
+# [release]
+# status = "tested"      # or "untested"

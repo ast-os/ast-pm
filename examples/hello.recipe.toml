@@ -1,0 +1,27 @@
+# Source recipe. Everything the scripts install into $DESTDIR becomes the package.
+
+[package]
+name = "hello"
+version = "2.12"
+description = "GNU hello"
+license = "GPL-3.0-or-later"
+arch = ["aarch64", "x86_64"]
+build_depends = ["gcc", "make"]
+
+[source]
+# Absolute URL (https://, file://) or a path relative to the repository URL.
+url = "https://ftp.gnu.org/gnu/hello/hello-2.12.tar.gz"
+# PLACEHOLDER: use `sha256sum` of the real archive.
+sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+
+# Up to three shell scripts, run with `sh -e` in this order inside the unpacked source:
+# prepare, build, install. Environment: MSRC, DESTDIR, JOBS, MAKEFLAGS, ARCH, PKGNAME,
+# PKGVER, PHASE, SOURCE_DATE_EPOCH. The build directory is fixed by ast.
+[build]
+build = '''
+./configure --prefix=/usr
+make -j"$JOBS"
+'''
+install = '''
+make install DESTDIR="$DESTDIR"
+'''

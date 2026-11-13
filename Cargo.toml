@@ -1,0 +1,53 @@
+[package]
+name = "ast"
+version = "0.1.0"
+edition = "2024"
+license = "BSD-3-Clause"
+repository = "https://github.com/ast-os/ast-pm"
+
+[dependencies]
+ed25519-dalek = "3.0.0"
+flate2 = "1.1.11"
+fs2 = "0.4.3"
+hex = "0.4.3"
+serde = { version = "1.0.229", features = ["derive"] }
+sha2 = "0.11.1"
+tar = "0.4.46"
+thiserror = "2.0.21"
+toml = "1.2.1"
+toml_edit = "0.25.19"
+ureq = "2"
+zstd = "0.14.3"
+
+[dev-dependencies]
+tempfile = "3.27.0"
+
+[lib]
+name = "ast"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ast"
+path = "src/main.rs"
+
+[[bin]]
+name = "astrap"
+path = "src/bin/astrap.rs"
+
+[[bin]]
+name = "astfstab"
+path = "src/bin/astfstab.rs"
+
+[[bin]]
+name = "astchroot"
+path = "src/bin/astchroot.rs"
+
+[[bin]]
+name = "astpkg"
+path = "src/bin/astpkg.rs"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

@@ -1,0 +1,31 @@
+//! ast: the package manager of asterOS.
+
+pub mod archive;
+pub mod args;
+pub mod chroot;
+pub mod fstab;
+pub mod build;
+pub mod config;
+pub mod download;
+pub mod error;
+pub mod hooks;
+pub mod index;
+pub mod package;
+pub mod repo;
+pub mod repogen;
+pub mod security;
+pub mod util;
+pub mod version;
+pub mod db;
+pub mod txn;
+pub mod resolver;
+pub mod openrc;
+pub mod transaction;
+pub mod install;
+pub mod ops;
+pub mod remove;
+pub mod spec;
+pub mod strap;
+pub mod transact;
+pub mod query;
+pub mod cli;

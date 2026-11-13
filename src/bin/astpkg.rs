@@ -17,9 +17,10 @@ const HELP: &str = "astpkg  repository and package tools
         [--build-dir DIR] [--repo-url URL] [--key KEY]
   index DIR --name N --arch A --channel C --key KEY
                                                 sign packages, write index.toml(.sig)
-  publish RECIPES --out DIR --name N --arch A --channel C --key KEY [--build-dir DIR] [--no-build]
+  publish RECIPES --out DIR --name N --arch A --channel C --key KEY [--build-dir DIR] [--no-build] [--files DIR]
                                                 build every RECIPES/*/*.recipe.toml that is not
-                                                in DIR yet (--no-build: none), copy the recipes, write the index";
+                                                in DIR yet (--no-build: none), copy the recipes, write the index;
+                                                the files of --files DIR (source archives of our own) are served too";
 
 fn sign(file: &Path, key: Option<String>) -> Result<()> {
     match key {
@@ -82,7 +83,17 @@ fn run(mut a: Args) -> Result<()> {
             let key_path = a.need(&["--key"])?;
             let build_dir = PathBuf::from(a.value(&["--build-dir"])?.unwrap_or_else(|| "/tmp/astpkg-build".into()));
             let no_build = a.flag(&["--no-build"]);
+            let files = a.value(&["--files"])?;
             let [recipes] = operands::<1>(a)?;
+            if let Some(dir) = files {
+                std::fs::create_dir_all(&out).ctx("cannot create", &out)?;
+                for f in std::fs::read_dir(&dir).ctx("cannot read", Path::new(&dir))? {
+                    let f = f.ctx("cannot read", Path::new(&dir))?.path();
+                    if f.is_file() {
+                        std::fs::copy(&f, out.join(f.file_name().unwrap_or_default())).ctx("cannot copy", &f)?;
+                    }
+                }
+            }
             publish(Path::new(&recipes), &out, &name, &arch, Channel::parse(&channel)?, Path::new(&key_path), &build_dir, !no_build)?;
         }
         _ => return Err(Error::Usage(format!("unknown command {cmd:?}"))),

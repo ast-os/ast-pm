@@ -4,7 +4,7 @@ Package manager of asterOS, in Rust. Builds from source by default; `.ast` packa
 repositories, transactional installs.
 
 ```
-cargo build --release     # ast, astrap, astfstab, astchroot, astpkg
+cargo build --release     # ast
 cargo test
 ```
 
@@ -25,5 +25,4 @@ ast -c           drop caches
 `-y` skips questions, `--dry-run` shows the plan, `--root DIR` works inside DIR, `-C DIR` reads
 another config dir. Config: `/etc/ast/{ast.toml,repos.toml,keys/}`, see [examples/](examples).
 
-`astrap ROOT` installs the base into a directory, `astfstab ROOT` prints fstab lines,
-`astchroot ROOT` enters it. `astpkg` is for maintainers (`keygen`, `pack`, `index`, `publish`).
+`astpkg` (repository ast-tools) is the maintainer tool.

@@ -320,6 +320,8 @@ pub fn pack_with(mut meta: Metadata, out: &Path, level: i32, fill: impl FnOnce(&
         let enc = zstd::Encoder::new(f, level).map_err(|e| Error::io("zstd init", e))?;
         let mut tb = tar::Builder::new(enc);
         tb.mode(tar::HeaderMode::Deterministic);
+        // a sparse file is stored whole: the installer accepts only plain files
+        tb.sparse(false);
         fill(&mut tb)?;
         let enc = tb.into_inner().map_err(|e| Error::io("tar finish", e))?;
         let f = enc.finish().map_err(|e| Error::io("zstd finish", e))?;

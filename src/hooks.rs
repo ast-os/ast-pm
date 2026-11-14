@@ -32,6 +32,38 @@ pub fn run(paths: &Paths, changed: &[String], ui: &mut dyn Ui) {
             report(ui, &format!("depmod {v}"), exec(root, "depmod", &["-a", v]));
         }
     }
+    desktop(root, changed, ui);
+}
+
+/// The caches of the desktop stack, refreshed when the files they index changed.
+fn desktop(root: &Path, changed: &[String], ui: &mut dyn Ui) {
+    let touched = |prefix: &str| changed.iter().any(|p| p.starts_with(prefix));
+    let jobs: [(&str, &str, &[&str]); 5] = [
+        ("usr/share/glib-2.0/schemas/", "glib-compile-schemas", &["/usr/share/glib-2.0/schemas"]),
+        ("usr/share/mime/packages/", "update-mime-database", &["/usr/share/mime"]),
+        ("usr/share/applications/", "update-desktop-database", &["-q", "/usr/share/applications"]),
+        ("usr/share/fonts/", "fc-cache", &["-s"]),
+        ("usr/lib/gtk-3.0/", "gtk-query-immodules-3.0", &["--update-cache"]),
+    ];
+    for (prefix, name, args) in jobs {
+        if touched(prefix) && tool(root, name) {
+            report(ui, name, exec(root, name, args));
+        }
+    }
+    // an icon theme: its cache is per theme directory
+    let themes: BTreeSet<&str> = changed
+        .iter()
+        .filter_map(|p| p.strip_prefix("usr/share/icons/"))
+        .filter_map(|p| p.split('/').next())
+        .collect();
+    if tool(root, "gtk-update-icon-cache") {
+        for t in themes {
+            let dir = format!("/usr/share/icons/{t}");
+            if root.join(dir.trim_start_matches('/')).join("index.theme").is_file() {
+                report(ui, &format!("icon cache {t}"), exec(root, "gtk-update-icon-cache", &["-q", "-t", "-f", &dir]));
+            }
+        }
+    }
 }
 
 fn report(ui: &mut dyn Ui, what: &str, ok: bool) {

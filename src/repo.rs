@@ -275,7 +275,7 @@ fn load_repo_candidates(paths: &Paths, cfg: &Config, repo: &Repo, foreign: bool)
 /// Download (or reuse from cache) a repository artifact, verifying size and
 /// checksum. Returns the cached path.
 pub fn fetch_artifact(paths: &Paths, cfg: &Config, cand: &Candidate, art: &Artifact) -> Result<PathBuf> {
-    let dest = paths.packages.join(format!("{}-{}", &art.sha256[..16], art.file));
+    let dest = paths.packages.join(format!("{}-{}", &art.sha256[..16], art.file.replace('/', "-")));
     mkdir_private(&paths.packages, 0o755)?;
     let url = join_url(&cand.repo_url, &art.file);
     let cached_ok = dest.exists()

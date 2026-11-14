@@ -119,7 +119,8 @@ fn publish(recipes: &Path, out: &Path, name: &str, arch: &str, channel: Channel,
                 files.push(f);
             } else if f.is_file() {
                 // other files of the recipe (a source archive a recipe names by a relative path) are served with it
-                let dest = out.join(f.file_name().unwrap_or_default());
+                let dest = out.join(dir.file_name().unwrap_or_default()).join(f.file_name().unwrap_or_default());
+                std::fs::create_dir_all(dest.parent().unwrap_or(out)).ctx("cannot create", out)?;
                 std::fs::copy(&f, &dest).ctx("cannot copy", &f)?;
             }
         }
@@ -148,6 +149,7 @@ fn publish(recipes: &Path, out: &Path, name: &str, arch: &str, channel: Channel,
             sign_package(&build_package(&job)?, &key)?;
         }
         let dest = out.join(ast::index::recipe_file_name(&recipe.name, &recipe.version, recipe.revision));
+        std::fs::create_dir_all(dest.parent().unwrap_or(out)).ctx("cannot create", out)?;
         std::fs::copy(&file, &dest).ctx("cannot copy", &file)?;
     }
     let idx = generate_index(out, name, arch, channel, &key)?;

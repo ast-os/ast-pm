@@ -41,8 +41,12 @@ pub fn generate_index(dir: &Path, repo: &str, arch: &str, channel: Channel, key:
         let name = f.file_name().to_string_lossy().into_owned();
         if name.ends_with(&format!(".{PACKAGE_EXT}")) {
             add_binary(&mut entries, &f.path(), &name, arch, key)?;
-        } else if name.ends_with(RECIPE_SUFFIX) {
-            add_recipe(&mut entries, &f.path(), &name, arch)?;
+        } else if f.path().is_dir() && !name.starts_with('_') {
+            let rel = format!("{name}/{name}{RECIPE_SUFFIX}");
+            let path = dir.join(&rel);
+            if path.is_file() {
+                add_recipe(&mut entries, &path, &rel, arch)?;
+            }
         }
     }
     let idx = Index { repo: repo.to_string(), arch: arch.to_string(), channel, packages: entries.into_values().collect() };

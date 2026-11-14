@@ -208,7 +208,8 @@ impl Env {
             q(deps),
             q(build_deps)
         );
-        std::fs::write(r.dir.join(format!("{name}-{version}-1.recipe.toml")), text).unwrap();
+        std::fs::create_dir_all(r.dir.join(name)).unwrap();
+        std::fs::write(r.dir.join(name).join(format!("{name}.recipe.toml")), text).unwrap();
     }
 
     /// Sign packages and write the index of a repository.

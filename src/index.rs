@@ -85,8 +85,9 @@ pub fn binary_file_name(name: &PackageName, version: &Version, revision: u32) ->
     format!("{name}-{version}-{revision}.ast")
 }
 
-pub fn recipe_file_name(name: &PackageName, version: &Version, revision: u32) -> String {
-    format!("{name}-{version}-{revision}.recipe.toml")
+/// Where a recipe is in a repository: the directory of its package, as in the recipes tree.
+pub fn recipe_file_name(name: &PackageName, _version: &Version, _revision: u32) -> String {
+    format!("{name}/{name}.recipe.toml")
 }
 
 impl IndexEntry {
@@ -224,6 +225,6 @@ mod tests {
         e.revision = 2;
         e.recipe = Some("1".repeat(64));
         assert_eq!(e.binary_artifact().unwrap().file, "nginx-1.28.0-2.ast");
-        assert_eq!(e.recipe_artifact().unwrap().file, "nginx-1.28.0-2.recipe.toml");
+        assert_eq!(e.recipe_artifact().unwrap().file, "nginx/nginx.recipe.toml");
     }
 }

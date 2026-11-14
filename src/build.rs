@@ -409,18 +409,29 @@ fn fetch_git(git: &str, commit: &str, work: &Path, src_dir: &Path) -> Result<()>
     let script = format!(
         "git init -q . && git remote add origin \"$1\" && git fetch -q --depth 1 \"$1\" \"$2\" && git -c advice.detachedHead=false checkout -q FETCH_HEAD && test \"$(git rev-parse HEAD)\" = \"$2\" && {{ [ ! -f .gitmodules ] || git submodule update --init --recursive --depth 1 -q; }} && find . -name .git -prune -exec rm -rf {{}} +"
     );
-    let out = Command::new("/bin/sh")
-        .args(["-e", "-c", &script, "sh", git, commit])
-        .env_clear()
-        .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
-        .env("HOME", work)
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("SSL_CERT_FILE", "/etc/ssl/certs/ca-certificates.crt")
-        .current_dir(src_dir)
-        .stdin(Stdio::null())
-        .output()
-        .map_err(|e| Error::Build(format!("cannot run git: {e}")))?;
+    // a hosting service that answers with an error once is asked again
+    let mut tries = 0;
+    let out = loop {
+        let out = Command::new("/bin/sh")
+            .args(["-e", "-c", &script, "sh", git, commit])
+            .env_clear()
+            .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+            .env("HOME", work)
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("SSL_CERT_FILE", "/etc/ssl/certs/ca-certificates.crt")
+            .current_dir(src_dir)
+            .stdin(Stdio::null())
+            .output()
+            .map_err(|e| Error::Build(format!("cannot run git: {e}")))?;
+        tries += 1;
+        if out.status.success() || tries == 4 {
+            break out;
+        }
+        std::thread::sleep(std::time::Duration::from_secs(10 * tries));
+        // a failed attempt leaves a half-made repository behind
+        let _ = std::fs::remove_dir_all(src_dir.join(".git"));
+    };
     if !out.status.success() {
         return Err(Error::Network(format!("cannot fetch {git} at {commit}: {}", String::from_utf8_lossy(&out.stderr).trim())));
     }

@@ -1,6 +1,4 @@
-# Repositories (/etc/ast/repos.toml): one table per repository, named like it.
-# A repository is used when it is enabled and its channel is the system channel;
-# a higher priority wins.
+# one table per repository
 
 [ast]
 url = "https://raw.githubusercontent.com/ast-os/ast-recipes/main/recipes"

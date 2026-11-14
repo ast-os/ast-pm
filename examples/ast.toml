@@ -1,37 +1,18 @@
-# ast main configuration (/etc/ast/ast.toml)
-
 [core]
-# Target architecture.
 architecture = "x86_64"
-# System channel: "stable" or "edge". Never changed automatically.
 channel = "stable"
 
 [packages]
-# true  = untested system components may be installed, but ONLY after an
-#         extra, explicit confirmation (default answer: No).
-# false = packages marked `untested` are refused.
 allow_untested = true
-# false = build from source when a recipe exists (the default), true = prefer binaries.
 prefer_binary = false
 compression = "zstd"
 
 [build]
-# Where to look for source archives before upstream (file:// or https://), by file name.
-# mirrors = ["file:///var/cache/ast/distfiles"]
-# Set to false on devices that must never compile packages.
 enabled = true
-# Capped at runtime by CPU count and available RAM.
 jobs = 4
 directory = "/var/cache/ast/build"
-# How recipe scripts are isolated (bubblewrap): no network, read-only system,
-# no access to /home or /root, writable only inside the package's work dir.
-#   "required" - refuse to build without bubblewrap (default)
-#   "auto"     - use it when installed, otherwise warn and build unisolated
-#   "none"     - no isolation (debugging only)
-sandbox = "required"
+sandbox = "required"   # required, auto or none
 
 [security]
-# Both default to true. Setting either to false is loudly reported on
-# every run and is meant for debugging only.
 verify_signatures = true
 verify_checksums = true

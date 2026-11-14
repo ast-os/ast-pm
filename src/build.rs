@@ -361,18 +361,21 @@ fn fetch_source(job: &BuildJob, url: &str, dest: &Path) -> Result<()> {
 }
 
 /// The crates of a cargo package are fetched here, outside the sandbox (which has no network), as
-/// `cargo vendor --locked`: only what `Cargo.lock` names, each crate checked by its checksum there.
+/// `cargo vendor --locked`: only what `Cargo.lock` names, each crate checked by its checksum there (without
+/// a `Cargo.lock` in the source, the lock file is made here).
 fn vendor_crates(job: &BuildJob, work: &Path, src_dir: &Path, log_path: &Path) -> Result<()> {
     let r = job.recipe;
-    if src_dir.join("vendor").exists() || !src_dir.join("Cargo.lock").is_file() {
+    if src_dir.join("vendor").exists() || !src_dir.join("Cargo.toml").is_file() {
         return Ok(());
     }
+    // a project that does not commit its Cargo.lock gets one here, from the versions the registry has now
+    let locked = if src_dir.join("Cargo.lock").is_file() { " --locked" } else { "" };
     let mut log = std::fs::OpenOptions::new().append(true).open(log_path).ctx("cannot open build log", log_path)?;
     let _ = writeln!(log, "==> vendor");
     let mut cmd = Command::new("/bin/sh");
     cmd.arg("-e")
         .arg("-c")
-        .arg("mkdir -p .cargo && cargo vendor --locked vendor > .cargo/config.toml")
+        .arg(format!("mkdir -p .cargo && cargo vendor{locked} vendor > .cargo/config.toml"))
         .env_clear()
         .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
         .env("HOME", work)

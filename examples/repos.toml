@@ -3,14 +3,14 @@
 # a higher priority wins.
 
 [ast]
-url = "https://raw.githubusercontent.com/ast-os/ast-recipes/repo/x86_64/stable"
+url = "https://raw.githubusercontent.com/ast-os/ast-repo/main/x86_64/stable"
 enabled = true
 priority = 100
 key = "asteros.pub"
 channel = "stable"
 
 [ast-edge]
-url = "https://raw.githubusercontent.com/ast-os/ast-recipes/repo/x86_64/edge"
+url = "https://raw.githubusercontent.com/ast-os/ast-repo/main/x86_64/edge"
 enabled = false
 priority = 100
 key = "asteros.pub"

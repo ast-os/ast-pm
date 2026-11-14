@@ -291,9 +291,8 @@ mod tests {
         assert!(c.packages.allow_untested && !c.packages.prefer_binary);
         assert!(c.security.verify_signatures);
         let r = Repos::parse(DEFAULT_REPOS_TOML).unwrap();
-        assert_eq!(r.0.len(), 2);
+        assert_eq!(r.0.len(), 1);
         assert!(r.get("ast").unwrap().enabled);
-        assert!(!r.get("ast-edge").unwrap().enabled);
         assert_eq!(r.active(Channel::Stable).len(), 1);
         assert_eq!(r.active(Channel::Edge).len(), 0);
     }
@@ -333,10 +332,10 @@ mod tests {
         std::fs::create_dir_all(&paths.etc).unwrap();
         std::fs::write(paths.repos_toml(), DEFAULT_REPOS_TOML).unwrap();
         std::fs::write(paths.ast_toml(), DEFAULT_AST_TOML).unwrap();
-        set_repo_enabled(&paths, "ast-edge", true).unwrap();
+        set_repo_enabled(&paths, "ast", false).unwrap();
         let text = std::fs::read_to_string(paths.repos_toml()).unwrap();
         assert!(text.contains("one table per repository"));
-        assert!(Repos::parse(&text).unwrap().get("ast-edge").unwrap().enabled);
+        assert!(!Repos::parse(&text).unwrap().get("ast").unwrap().enabled);
         assert!(set_repo_enabled(&paths, "nope", true).is_err());
         set_channel(&paths, Channel::Edge).unwrap();
         assert_eq!(Config::load(&paths).unwrap().core.channel, Channel::Edge);

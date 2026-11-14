@@ -1,12 +1,9 @@
-//! Drives the real `ast` and `astpkg` binaries against a temporary root.
+//! Drives the real `ast` binary against a temporary root; the packages come from the library.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::io::Write;
 
-fn astpkg() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_astpkg"))
-}
 
 struct Out {
     code: i32,
@@ -48,12 +45,10 @@ fn pack(dir: &Path, name: &str, version: &str, deps: &str, extra: &str, files: &
     }
     let meta = dir.join(format!("{name}.meta.toml"));
     std::fs::write(&meta, format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\narch = \"x86_64\"\ndepends = [{deps}]\n{extra}\n")).unwrap();
-    let out = run({
-        let mut c = astpkg();
-        c.arg("pack").arg(&stage).arg("--meta").arg(&meta).arg("--out").arg(dir.join("repo").join(format!("{name}-{version}-1.ast")));
-        c
-    }, "");
-    assert_eq!(out.code, 0, "{}", out.stderr);
+    let text = std::fs::read_to_string(&meta).unwrap();
+    let out = dir.join("repo").join(format!("{name}-{version}-1.ast"));
+    ast::package::pack_directory(&stage, ast::package::Metadata::parse(&text).unwrap(), &out).unwrap();
+    ast::repogen::sign_package(&out, &ast::security::SecretKey::load(&dir.join("keys/ast.key")).unwrap()).unwrap();
 }
 
 fn sandbox() -> Sandbox {
@@ -62,19 +57,14 @@ fn sandbox() -> Sandbox {
     let repo = dir.path().join("repo");
     std::fs::create_dir_all(&repo).unwrap();
     // 1. keys
-    let o = run({ let mut c = astpkg(); c.arg("keygen").arg("ast").arg("--out").arg(dir.path().join("keys")); c }, "");
-    assert_eq!(o.code, 0, "{}", o.stderr);
+    ast::security::SecretKey::generate().unwrap().write_pair(&dir.path().join("keys"), "ast").unwrap();
     // packages: app -> libfoo ; kernel is an untested system component
     pack(dir.path(), "libfoo", "1.0", "", "", &[("usr/lib/libfoo.so", "lib\n")]);
     pack(dir.path(), "app", "1.0", "\"libfoo >= 1.0\"", "", &[("usr/bin/app", "#!/bin/sh\n")]);
     pack(dir.path(), "linux", "7.1", "", "[release]\nstatus = \"untested\"\n", &[("boot/vmlinuz", "kernel\n")]);
     // 2. signed index
-    let o = run({
-        let mut c = astpkg();
-        c.arg("index").arg(&repo).args(["--name", "ast", "--arch", "x86_64", "--channel", "stable", "--key"]).arg(dir.path().join("keys/ast.key"));
-        c
-    }, "");
-    assert_eq!(o.code, 0, "{}", o.stderr);
+    let key = ast::security::SecretKey::load(&dir.path().join("keys/ast.key")).unwrap();
+    ast::repogen::generate_index(&repo, "ast", "x86_64", ast::config::Channel::Stable, &key).unwrap();
     // 3. ast init + repos.toml + key
     let sb = Sandbox { dir, root, repo };
     let o = sb.ast(&["init"], "");

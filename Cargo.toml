@@ -32,22 +32,6 @@ path = "src/lib.rs"
 name = "ast"
 path = "src/main.rs"
 
-[[bin]]
-name = "astrap"
-path = "src/bin/astrap.rs"
-
-[[bin]]
-name = "astfstab"
-path = "src/bin/astfstab.rs"
-
-[[bin]]
-name = "astchroot"
-path = "src/bin/astchroot.rs"
-
-[[bin]]
-name = "astpkg"
-path = "src/bin/astpkg.rs"
-
 [profile.release]
 lto = true
 codegen-units = 1

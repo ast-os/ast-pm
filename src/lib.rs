@@ -2,8 +2,6 @@
 
 pub mod archive;
 pub mod args;
-pub mod chroot;
-pub mod fstab;
 pub mod build;
 pub mod config;
 pub mod download;
@@ -25,7 +23,6 @@ pub mod install;
 pub mod ops;
 pub mod remove;
 pub mod spec;
-pub mod strap;
 pub mod transact;
 pub mod query;
 pub mod cli;

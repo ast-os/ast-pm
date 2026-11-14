@@ -45,13 +45,13 @@ fn help() -> String {
 // ------------------------------------------------------------ terminal
 
 /// Light colour, only on a terminal and only if `NO_COLOR` is unset.
-struct TermUi {
+pub struct TermUi {
     color_out: bool,
     color_err: bool,
 }
 
 impl TermUi {
-    fn new() -> TermUi {
+    pub fn new() -> TermUi {
         let ok = std::env::var_os("NO_COLOR").is_none();
         TermUi { color_out: ok && std::io::stdout().is_terminal(), color_err: ok && std::io::stderr().is_terminal() }
     }
@@ -151,56 +151,6 @@ pub fn escalate() -> Error {
         }
     }
     Error::Other("this needs root: run ast as root, or install sudo or doas".into())
-}
-
-/// `astfstab` and `astchroot`: small tools for installing by hand.
-pub fn run_tool(name: &str, args: Vec<String>) -> i32 {
-    let help = match name {
-        "astfstab" => crate::fstab::HELP,
-        _ => crate::chroot::HELP,
-    };
-    if args.is_empty() || args.iter().any(|a| a == "-h" || a == "--help") {
-        println!("{help}");
-        return 0;
-    }
-    let go = || -> Result<i32> {
-        if name == "astchroot" && !crate::util::is_root() {
-            return Err(escalate());
-        }
-        match name {
-            "astfstab" => crate::fstab::run(args),
-            _ => crate::chroot::run(args),
-        }
-    };
-    match go() {
-        Ok(code) => code,
-        Err(e) => {
-            report(&e);
-            e.exit_code()
-        }
-    }
-}
-
-/// `astrap`: install the base system into a directory.
-pub fn run_strap() -> i32 {
-    let go = || -> Result<i32> {
-        let mut a = Args::from_env();
-        if a.is_empty() || a.flag(&["-h", "--help"]) {
-            println!("{}", crate::strap::HELP);
-            return Ok(0);
-        }
-        if !crate::util::is_root() {
-            return Err(escalate());
-        }
-        crate::strap::run(a, &mut TermUi::new())
-    };
-    match go() {
-        Ok(code) => code,
-        Err(e) => {
-            report(&e);
-            e.exit_code()
-        }
-    }
 }
 
 pub fn run() -> i32 {

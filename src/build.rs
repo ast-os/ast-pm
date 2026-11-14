@@ -340,6 +340,39 @@ fn fetch_source(job: &BuildJob, url: &str, dest: &Path) -> Result<()> {
     })
 }
 
+/// The crates of a cargo package are fetched here, outside the sandbox (which has no network), as
+/// `cargo vendor --locked`: only what `Cargo.lock` names, each crate checked by its checksum there.
+fn vendor_crates(job: &BuildJob, work: &Path, src_dir: &Path, log_path: &Path) -> Result<()> {
+    let r = job.recipe;
+    if src_dir.join("vendor").exists() || !src_dir.join("Cargo.lock").is_file() {
+        return Ok(());
+    }
+    let mut log = std::fs::OpenOptions::new().append(true).open(log_path).ctx("cannot open build log", log_path)?;
+    let _ = writeln!(log, "==> vendor");
+    let mut cmd = Command::new("/bin/sh");
+    cmd.arg("-e")
+        .arg("-c")
+        .arg("mkdir -p .cargo && cargo vendor --locked vendor > .cargo/config.toml")
+        .env_clear()
+        .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+        .env("HOME", work)
+        .env("CARGO_HOME", work.join("cargo-home"))
+        .env("SSL_CERT_FILE", "/etc/ssl/certs/ca-certificates.crt")
+        .current_dir(src_dir)
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(log.try_clone().ctx("cannot dup log", log_path)?))
+        .stderr(Stdio::from(log));
+    if crate::util::is_root() {
+        std::os::unix::process::CommandExt::uid(&mut cmd, job.cfg.uid);
+        std::os::unix::process::CommandExt::gid(&mut cmd, job.cfg.gid);
+    }
+    let status = cmd.status().map_err(|e| Error::Build(format!("cannot start cargo for {}: {e}", r.name)))?;
+    if !status.success() {
+        return Err(Error::Build(format!("fetching the crates of {} failed ({status}); last log lines:\n{}", r.name, tail(log_path, 15))));
+    }
+    Ok(())
+}
+
 fn build_inner(job: &BuildJob, work: &Path, log_path: &Path) -> Result<PathBuf> {
     let r = job.recipe;
     let url = r.source_url(job.repo_url)?;
@@ -361,6 +394,9 @@ fn build_inner(job: &BuildJob, work: &Path, log_path: &Path) -> Result<PathBuf> 
         chown_tree(work, job.cfg.uid, job.cfg.gid)?;
     }
     File::create(log_path).ctx("cannot create build log", log_path)?;
+    if r.build.style == Some(Style::Cargo) {
+        vendor_crates(job, work, &src_dir, log_path)?;
+    }
     let sandbox = choose_sandbox(job.cfg.sandbox, find_in_path("bwrap", std::env::var_os("PATH")))?;
     if sandbox.is_none() {
         eprintln!("warning: build scripts of {} run WITHOUT sandbox", r.name);

@@ -47,7 +47,7 @@ No `[release] status` means no status; it is never assumed. No install scripts.
 ```
 <url>/index.toml  index.toml.sig
 <url>/NAME-VERSION-REV.ast  .ast.sig
-<url>/NAME-VERSION-REV.recipe.toml
+<url>/NAME/NAME.recipe.toml
 ```
 
 Signed as served (Ed25519 over the raw bytes). Files are found by name, the index only holds
@@ -66,7 +66,7 @@ license = "BSD-2-Clause"
 depends = ["zlib"]
 status = "untested"      # system components only
 binary = "9a1f..."       # sha256 of nginx-1.28.0-1.ast
-recipe = "d1f6..."       # sha256 of nginx-1.28.0-1.recipe.toml
+recipe = "d1f6..."       # sha256 of nginx/nginx.recipe.toml
 ```
 
 An entry has `binary`, `recipe` or both. `ast -u` checks the signature and that

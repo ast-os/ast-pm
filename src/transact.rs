@@ -113,7 +113,7 @@ impl Ast {
         let foreign_deps: Vec<&&PlanItem> = foreign.iter().filter(|i| !pins.contains(i.name())).collect();
         let sources: Vec<&PlanItem> = plan.install.iter().filter(|i| i.method == Method::Source).collect();
         if !sources.is_empty() {
-            ui.warn(if self.cfg.build.sandbox == crate::config::SandboxMode::None { "!  runs recipe scripts WITHOUT a sandbox:" } else { "!  runs recipe scripts (sandboxed, no network):" });
+            ui.warn(if self.cfg.build.sandbox == crate::config::SandboxMode::None { "!  runs recipe scripts WITHOUT a sandbox:" } else { "!  runs recipe scripts:" });
             for s in &sources {
                 ui.warn(&format!("  {}  {}  {}", s.name(), s.cand.entry.version, s.cand.repo));
             }

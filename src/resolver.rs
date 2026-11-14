@@ -355,7 +355,7 @@ impl<'a> Resolver<'a> {
             }
             self.force.insert(name.clone());
             let pend = Pending {
-                dep: Dependency { name: name.clone(), constraint: (!inst.version.is_git()).then(|| (Op::Ge, inst.version.clone())) },
+                dep: Dependency { name: name.clone(), constraint: (!inst.version.is_git() && !best.entry.version.is_git()).then(|| (Op::Ge, inst.version.clone())) },
                 binary_only,
                 repo: None,
                 reason: inst.reason,

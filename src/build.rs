@@ -393,7 +393,7 @@ fn vendor_crates(job: &BuildJob, work: &Path, src_dir: &Path, log_path: &Path) -
 /// checksum: git refuses a commit whose content does not match it.
 fn fetch_git(git: &str, commit: &str, work: &Path, src_dir: &Path) -> Result<()> {
     let script = format!(
-        "git init -q . && git fetch -q --depth 1 \"$1\" \"$2\" && git -c advice.detachedHead=false checkout -q FETCH_HEAD && test \"$(git rev-parse HEAD)\" = \"$2\" && rm -rf .git"
+        "git init -q . && git fetch -q --depth 1 \"$1\" \"$2\" && git -c advice.detachedHead=false checkout -q FETCH_HEAD && test \"$(git rev-parse HEAD)\" = \"$2\" && {{ [ ! -f .gitmodules ] || git submodule update --init --recursive --depth 1 -q; }} && find . -name .git -prune -exec rm -rf {{}} +"
     );
     let out = Command::new("/bin/sh")
         .args(["-e", "-c", &script, "sh", git, commit])

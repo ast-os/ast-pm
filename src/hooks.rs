@@ -38,12 +38,13 @@ pub fn run(paths: &Paths, changed: &[String], ui: &mut dyn Ui) {
 /// The caches of the desktop stack, refreshed when the files they index changed.
 fn desktop(root: &Path, changed: &[String], ui: &mut dyn Ui) {
     let touched = |prefix: &str| changed.iter().any(|p| p.starts_with(prefix));
-    let jobs: [(&str, &str, &[&str]); 5] = [
+    let jobs: [(&str, &str, &[&str]); 6] = [
         ("usr/share/glib-2.0/schemas/", "glib-compile-schemas", &["/usr/share/glib-2.0/schemas"]),
         ("usr/share/mime/packages/", "update-mime-database", &["/usr/share/mime"]),
         ("usr/share/applications/", "update-desktop-database", &["-q", "/usr/share/applications"]),
         ("usr/share/fonts/", "fc-cache", &["-s"]),
         ("usr/lib/gtk-3.0/", "gtk-query-immodules-3.0", &["--update-cache"]),
+        ("usr/lib/gdk-pixbuf-2.0/", "gdk-pixbuf-query-loaders", &["--update-cache"]),
     ];
     for (prefix, name, args) in jobs {
         if touched(prefix) && tool(root, name) {

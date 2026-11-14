@@ -38,6 +38,10 @@ pub struct SourceSpec {
     pub git: Option<String>,
     #[serde(default)]
     pub commit: Option<String>,
+    /// Fetch the crates of `Cargo.lock` before the build (a cargo package does this by itself);
+    /// for a package of another style that has Rust parts, such as librsvg.
+    #[serde(default)]
+    pub vendor: bool,
     /// Leading path components to strip from the tarball (default 1).
     #[serde(default = "one")]
     pub strip: usize,
@@ -439,7 +443,7 @@ fn build_inner(job: &BuildJob, work: &Path, log_path: &Path) -> Result<PathBuf> 
         chown_tree(work, job.cfg.uid, job.cfg.gid)?;
     }
     File::create(log_path).ctx("cannot create build log", log_path)?;
-    if r.build.style == Some(Style::Cargo) {
+    if r.build.style == Some(Style::Cargo) || r.source.vendor {
         vendor_crates(job, work, &src_dir, log_path)?;
     }
     let sandbox = choose_sandbox(job.cfg.sandbox, find_in_path("bwrap", std::env::var_os("PATH")))?;

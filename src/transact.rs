@@ -293,7 +293,7 @@ impl Ast {
                         repo: item.cand.repo.clone(),
                         file,
                         sha256,
-                        source_sha256: Some(recipe.source.sha256.clone()),
+                        source_sha256: Some(recipe.source.commit.clone().unwrap_or_else(|| recipe.source.sha256.clone())),
                     };
                     (pf, o)
                 }

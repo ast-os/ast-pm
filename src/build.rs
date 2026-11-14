@@ -28,8 +28,16 @@ pub const RECIPE_SUFFIX: &str = ".recipe.toml";
 #[derive(Debug, Clone, Deserialize)]
 pub struct SourceSpec {
     /// Absolute URL, or a path relative to the repository URL.
+    #[serde(default)]
     pub url: String,
+    #[serde(default)]
     pub sha256: String,
+    /// Instead of an archive: a git repository and the commit to build (40 hex digits). The
+    /// commit is the checksum.
+    #[serde(default)]
+    pub git: Option<String>,
+    #[serde(default)]
+    pub commit: Option<String>,
     /// Leading path components to strip from the tarball (default 1).
     #[serde(default = "one")]
     pub strip: usize,
@@ -230,7 +238,15 @@ impl Recipe {
                 return Err(Error::Parse(format!("recipe {}: unknown architecture {a:?}", self.name)));
             }
         }
-        if !is_hex_sha256(&self.source.sha256) {
+        if self.source.git.is_some() {
+            let c = self.source.commit.as_deref().unwrap_or("");
+            if c.len() != 40 || !c.bytes().all(|b| b.is_ascii_hexdigit()) {
+                return Err(Error::Parse(format!("recipe {}: source.commit must be a full commit hash (40 hex digits)", self.name)));
+            }
+            if !self.source.url.is_empty() || !self.source.sha256.is_empty() {
+                return Err(Error::Parse(format!("recipe {}: source takes `git` and `commit`, or `url` and `sha256`, not both", self.name)));
+            }
+        } else if !is_hex_sha256(&self.source.sha256) {
             return Err(Error::Parse(format!("recipe {}: source.sha256 must be a SHA-256 hex digest", self.name)));
         }
         if self.build.phases().is_empty() {
@@ -373,20 +389,49 @@ fn vendor_crates(job: &BuildJob, work: &Path, src_dir: &Path, log_path: &Path) -
     Ok(())
 }
 
+/// The source from git: exactly one commit, fetched without history. The commit hash is the
+/// checksum: git refuses a commit whose content does not match it.
+fn fetch_git(git: &str, commit: &str, work: &Path, src_dir: &Path) -> Result<()> {
+    let script = format!(
+        "git init -q . && git fetch -q --depth 1 \"$1\" \"$2\" && git -c advice.detachedHead=false checkout -q FETCH_HEAD && test \"$(git rev-parse HEAD)\" = \"$2\" && rm -rf .git"
+    );
+    let out = Command::new("/bin/sh")
+        .args(["-e", "-c", &script, "sh", git, commit])
+        .env_clear()
+        .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+        .env("HOME", work)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("SSL_CERT_FILE", "/etc/ssl/certs/ca-certificates.crt")
+        .current_dir(src_dir)
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| Error::Build(format!("cannot run git: {e}")))?;
+    if !out.status.success() {
+        return Err(Error::Network(format!("cannot fetch {git} at {commit}: {}", String::from_utf8_lossy(&out.stderr).trim())));
+    }
+    Ok(())
+}
+
 fn build_inner(job: &BuildJob, work: &Path, log_path: &Path) -> Result<PathBuf> {
     let r = job.recipe;
-    let url = r.source_url(job.repo_url)?;
-    let src_file = work.join("source.archive");
-    fetch_source(job, &url, &src_file)?;
     let src_dir = work.join("src");
     let dest_dir = work.join("dest");
     for d in [&src_dir, &dest_dir] {
         crate::util::mkdir_private(d, 0o755)?;
     }
-    if r.source.plain {
+    if let (Some(git), Some(commit)) = (&r.source.git, &r.source.commit) {
+        fetch_git(git, commit, work, &src_dir)?;
+    } else if r.source.plain {
+        let url = r.source_url(job.repo_url)?;
+        let src_file = work.join("source.archive");
+        fetch_source(job, &url, &src_file)?;
         let name = url.rsplit('/').next().filter(|n| !n.is_empty()).ok_or_else(|| Error::Build(format!("no file name in {url}")))?;
         std::fs::copy(&src_file, src_dir.join(name)).ctx("cannot copy", &src_file)?;
     } else {
+        let url = r.source_url(job.repo_url)?;
+        let src_file = work.join("source.archive");
+        fetch_source(job, &url, &src_file)?;
         extract_source(&src_file, &src_dir, r.source.strip)?;
     }
 
@@ -476,8 +521,11 @@ fn build_inner(job: &BuildJob, work: &Path, log_path: &Path) -> Result<PathBuf> 
         origin: Origin {
             builder: Some(format!("ast-pm {}", env!("CARGO_PKG_VERSION"))),
             built_at: Some(crate::util::now()),
-            source_url: Some(url),
-            source_sha256: Some(r.source.sha256.clone()),
+            source_url: Some(match &r.source.git {
+                Some(g) => g.clone(),
+                None => r.source_url(job.repo_url)?,
+            }),
+            source_sha256: Some(r.source.commit.clone().unwrap_or_else(|| r.source.sha256.clone())),
         },
         payload_sha256: String::new(),
     };
@@ -680,6 +728,15 @@ sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
 [build]
 build = "true"
 "#;
+
+    #[test]
+    fn git_source_needs_a_full_commit() {
+        let git = RECIPE
+            .replace("url = \"hello-1.0.tar.gz\"", "git = \"https://example.org/hello\"\ncommit = \"0123456789abcdef0123456789abcdef01234567\"")
+            .replace("sha256 = \"", "#sha256 = \"");
+        assert!(Recipe::parse(&git).is_ok());
+        assert!(Recipe::parse(&git.replace("0123456789abcdef0123456789abcdef01234567", "abc")).is_err());
+    }
 
     #[test]
     fn recipe_parse_and_validate() {

@@ -25,5 +25,3 @@ another config dir. Config: `/etc/ast/{ast.toml,repos.toml,keys/}`, see [example
 
 `astrap ROOT` installs the base into a directory, `astfstab ROOT` prints fstab lines,
 `astchroot ROOT` enters it. `astpkg` is for maintainers (`keygen`, `pack`, `index`, `publish`).
-
-Formats: [docs/format.md](docs/format.md). Security: [docs/security.md](docs/security.md).

@@ -6,7 +6,7 @@
 //! cleared environment inside the build directory, as an unprivileged user
 //! when `ast` itself runs as root. There is NO sandbox: a malicious recipe
 //! can still read world-readable files and use the network. See
-//! docs/security.md.
+//! the build sandbox section of the security notes.
 
 use crate::archive::normalize_rel;
 use crate::config::{BuildCfg, KNOWN_ARCHES, SandboxMode};

@@ -110,12 +110,12 @@ impl BuildSpec {
             }
             Some(Style::Cmake) => {
                 build = Some(format!(
-                    "cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release{configure}\ncmake --build build -j\"$JOBS\"{make}\n"
+                    "cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release{configure}\ncmake --build build -j\"$JOBS\"{make}\n"
                 ));
                 install = Some("DESTDIR=\"$DESTDIR\" cmake --install build\n".to_string());
             }
             Some(Style::Meson) => {
-                build = Some(format!("meson setup build --prefix=/usr --buildtype=release{configure}\nninja -C build -j\"$JOBS\"{make}\n"));
+                build = Some(format!("meson setup build --prefix=/usr --libdir=lib --buildtype=release --wrap-mode=nodownload{configure}\nninja -C build -j\"$JOBS\"{make}\n"));
                 install = Some("DESTDIR=\"$DESTDIR\" ninja -C build install\n".to_string());
             }
             Some(Style::Cargo) => {
@@ -971,7 +971,7 @@ build = "true"
         assert!(p[0].1.contains("./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --disable-static"));
         assert!(p[0].1.contains("make -j\"$JOBS\" V=1") && p[1].1.contains("make DESTDIR=\"$DESTDIR\" install"));
         let m = recipe("style = \"meson\"\nconfigure = [\"-Dfoo=true\"]\n").build.phases();
-        assert!(m[0].1.contains("meson setup build --prefix=/usr --buildtype=release -Dfoo=true") && m[1].1.contains("ninja -C build install"));
+        assert!(m[0].1.contains("meson setup build --prefix=/usr --libdir=lib --buildtype=release --wrap-mode=nodownload -Dfoo=true") && m[1].1.contains("ninja -C build install"));
         let c = recipe("style = \"cargo\"\nbins = [\"tool\"]\n").build.phases();
         assert!(c[1].1.contains("install -Dm755 target/release/tool"));
     }

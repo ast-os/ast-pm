@@ -100,6 +100,9 @@ fn item_deps(it: &PlanItem) -> Vec<(Dependency, Reason)> {
 }
 
 fn newer_than(c: &Candidate, i: &InstalledPackage) -> bool {
+    if c.entry.version.is_git() || i.version.is_git() {
+        return (&c.entry.version, c.entry.revision) != (&i.version, i.revision);
+    }
     (&c.entry.version, c.entry.revision) > (&i.version, i.revision)
 }
 
@@ -352,7 +355,7 @@ impl<'a> Resolver<'a> {
             }
             self.force.insert(name.clone());
             let pend = Pending {
-                dep: Dependency { name: name.clone(), constraint: Some((Op::Ge, inst.version.clone())) },
+                dep: Dependency { name: name.clone(), constraint: (!inst.version.is_git()).then(|| (Op::Ge, inst.version.clone())) },
                 binary_only,
                 repo: None,
                 reason: inst.reason,

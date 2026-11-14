@@ -7,13 +7,11 @@ use std::path::Path;
 
 pub const HELP: &str = "astrap ROOT [PKG...]
 
-install asteros-base and PKG... into ROOT, using this system's repositories and keys
-
-  -y, --yes           skip ordinary questions
-  -C, --config DIR    read ast.toml, repos.toml and keys from DIR (default /etc/ast)
-  -b, --base NAME     the package group to install instead of asteros-base
-  -j, --jobs N        build jobs
-  --accept-untested   do not ask about untested system components";
+  -y, --yes  no questions
+  -C, --config DIR  other config
+  -b, --base NAME  other base package
+  -j, --jobs N  jobs
+  --accept-untested  accept untested";
 
 pub fn run(mut a: Args, ui: &mut dyn Ui) -> Result<i32> {
     let jobs = a

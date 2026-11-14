@@ -9,18 +9,13 @@ use ast::repogen::{generate_index, sign_package};
 use ast::security::SecretKey;
 use std::path::{Path, PathBuf};
 
-const HELP: &str = "astpkg  repository and package tools
+const HELP: &str = "astpkg
 
-  keygen NAME [--out DIR]                       key pair NAME.key (secret) and NAME.pub
-  pack DIR --meta FILE --out FILE [--key KEY]   pack a staging directory into a .ast
-  build RECIPE --out DIR [--arch A] [--jobs N]  build a recipe into a .ast
-        [--build-dir DIR] [--repo-url URL] [--key KEY]
-  index DIR --name N --arch A --channel C --key KEY
-                                                sign packages, write index.toml(.sig)
-  publish RECIPES --out DIR --name N --arch A --channel C --key KEY [--build-dir DIR] [--no-build] [--files DIR]
-                                                build every RECIPES/*/*.recipe.toml that is not
-                                                in DIR yet (--no-build: none), copy the recipes, write the index;
-                                                the files of --files DIR (source archives of our own) are served too";
+  keygen NAME [--out DIR]  make a key pair
+  pack DIR --meta FILE --out FILE [--key KEY]  pack a directory
+  build RECIPE --out DIR [--arch A] [--jobs N] [--build-dir DIR] [--repo-url URL] [--key KEY]  build a recipe
+  index DIR --name N --arch A --channel C --key KEY  sign and index
+  publish RECIPES --out DIR --name N --arch A --channel C --key KEY [--build-dir DIR] [--no-build] [--files DIR]  build and index";
 
 fn sign(file: &Path, key: Option<String>) -> Result<()> {
     match key {

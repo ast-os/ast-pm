@@ -5,9 +5,7 @@ use crate::error::{Error, Result};
 use std::os::unix::process::CommandExt;
 use std::process::Command;
 
-pub const HELP: &str = "astchroot ROOT [COMMAND...]
-
-run COMMAND (default: a shell) inside ROOT; /proc, /sys, /dev, /run and resolv.conf are mounted for it";
+pub const HELP: &str = "astchroot ROOT [COMMAND...]";
 
 const SETUP: &str = r#"set -e
 r=$1; shift

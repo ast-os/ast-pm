@@ -174,7 +174,9 @@ struct Raw {
 #[derive(Deserialize)]
 struct RawPackage {
     name: PackageName,
-    version: Version,
+    /// Absent with a git source: the version is then the start of the commit.
+    #[serde(default)]
+    version: Option<Version>,
     #[serde(default = "one32")]
     revision: u32,
     #[serde(default)]
@@ -207,9 +209,14 @@ impl Recipe {
     pub fn parse(text: &str) -> Result<Recipe> {
         let raw: Raw = toml::from_str(text).map_err(|e| Error::Parse(format!("recipe: {e}")))?;
         let p = raw.package;
+        let version = match (p.version, &raw.source.git, &raw.source.commit) {
+            (Some(v), _, _) => v,
+            (None, Some(_), Some(c)) if c.len() >= 8 && c.is_ascii() => Version::new(&format!("git.{}", &c[..8]))?,
+            _ => return Err(Error::Parse(format!("recipe {}: `version` is needed unless the source is git", p.name))),
+        };
         let r = Recipe {
             name: p.name,
-            version: p.version,
+            version,
             revision: p.revision,
             description: p.description,
             license: p.license,
@@ -743,6 +750,16 @@ build = "true"
             .replace("sha256 = \"", "#sha256 = \"");
         assert!(Recipe::parse(&git).is_ok());
         assert!(Recipe::parse(&git.replace("0123456789abcdef0123456789abcdef01234567", "abc")).is_err());
+    }
+
+    #[test]
+    fn git_recipe_without_a_version_takes_it_from_the_commit() {
+        let git = RECIPE
+            .replace("version = \"1.0\"\n", "")
+            .replace("url = \"hello-1.0.tar.gz\"", "git = \"https://example.org/hello\"\ncommit = \"0123456789abcdef0123456789abcdef01234567\"")
+            .replace("sha256 = \"", "#sha256 = \"");
+        assert_eq!(Recipe::parse(&git).unwrap().version.as_str(), "git.01234567");
+        assert!(Recipe::parse(&RECIPE.replace("version = \"1.0\"\n", "")).is_err());
     }
 
     #[test]

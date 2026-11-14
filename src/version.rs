@@ -71,6 +71,11 @@ impl Version {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+    /// A version taken from a git commit (`git.` and the start of the hash): it has no order, a
+    /// different one is a newer one.
+    pub fn is_git(&self) -> bool {
+        self.0.starts_with("git.")
+    }
 }
 impl TryFrom<String> for Version {
     type Error = Error;

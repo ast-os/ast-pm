@@ -8,33 +8,33 @@ use std::io::{BufRead, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
 const MODES: &[[&str; 2]] = &[
-    ["-i PKG...", "install: build from source, or take a binary with -b; PKG[:repo][@ver]"],
-    ["-r PKG...", "remove, with the dependencies nothing else needs"],
-    ["-u [PKG...]", "refresh the repositories; with names, or -a, upgrade as well"],
-    ["-l", "list the installed packages"],
-    ["-q PKG", "information about a package"],
-    ["-s TEXT", "search; an empty TEXT lists everything"],
+    ["-i PKG...", "install"],
+    ["-r PKG...", "remove"],
+    ["-u [PKG...]", "update, upgrade the named"],
+    ["-l", "list installed"],
+    ["-q PKG", "package info"],
+    ["-s TEXT", "search"],
 ];
 
 const WORDS: &[[&str; 2]] = &[
-    ["repo [enable|disable NAME]", "list the repositories, or use one or stop using it"],
-    ["channel [stable|edge]", "show or set the system channel"],
-    ["verify [PKG...]", "check the installed files"],
-    ["clean", "drop cached packages and build data"],
-    ["init", "create the directories and the default configuration"],
+    ["repo [enable|disable NAME]", "list or switch repositories"],
+    ["channel [stable|edge]", "show or set the channel"],
+    ["verify [PKG...]", "check files"],
+    ["clean", "drop caches"],
+    ["init", "create the config"],
 ];
 
 const OPTIONS: &[[&str; 2]] = &[
-    ["-b", "binary packages only"],
-    ["-a", "all installed packages (with -u)"],
-    ["-y", "do not ask ordinary questions"],
-    ["--dry-run", "show the plan, change nothing"],
-    ["-j N", "build jobs"],
-    ["--root DIR", "work inside DIR instead of /"],
-    ["-C, --config DIR", "read ast.toml, repos.toml and keys from DIR (default /etc/ast)"],
-    ["--accept-untested", "do not ask about untested system components"],
-    ["--accept-foreign", "do not ask about other-channel dependencies"],
-    ["--adopt", "replace files that belong to no package (bootstrap)"],
+    ["-b", "binaries only"],
+    ["-a", "all packages (with -u)"],
+    ["-y", "no questions"],
+    ["--dry-run", "show the plan only"],
+    ["-j N", "jobs"],
+    ["--root DIR", "other root"],
+    ["-C, --config DIR", "other config"],
+    ["--accept-untested", "accept untested"],
+    ["--accept-foreign", "accept other channels"],
+    ["--adopt", "adopt unowned files"],
 ];
 
 fn help() -> String {
@@ -339,7 +339,6 @@ mod tests {
             assert!(h.contains(c[0]));
         }
         assert!(h.lines().all(|l| l == l.trim_end()));
-        assert!(h.contains("PKG[:repo][@ver]"), "{h}");
     }
 
     #[test]

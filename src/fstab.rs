@@ -3,10 +3,7 @@
 use crate::error::{Error, IoCtx, Result};
 use std::path::{Path, PathBuf};
 
-pub const HELP: &str = "astfstab ROOT
-
-print fstab lines for the filesystems mounted at and below ROOT, by UUID
-usage: astfstab /mnt >> /mnt/etc/fstab";
+pub const HELP: &str = "astfstab ROOT";
 
 struct Mount {
     point: String,

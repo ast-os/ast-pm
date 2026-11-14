@@ -12,16 +12,16 @@ const MODES: &[[&str; 2]] = &[
     ["-r PKG...", "remove"],
     ["-u [PKG...]", "update, upgrade the named"],
     ["-l", "list installed"],
-    ["-q PKG", "package info"],
+    ["-n PKG", "package info"],
     ["-s TEXT", "search"],
+    ["-v [PKG...]", "check files"],
+    ["-c", "drop caches"],
 ];
 
 const WORDS: &[[&str; 2]] = &[
-    ["repo [enable|disable NAME]", "list or switch repositories"],
-    ["channel [stable|edge]", "show or set the channel"],
-    ["verify [PKG...]", "check files"],
-    ["clean", "drop caches"],
-    ["init", "create the config"],
+    ["--switch [enable|disable NAME]", "list or switch repositories"],
+    ["--channel [stable|edge]", "show or set the channel"],
+    ["--init", "create the config"],
 ];
 
 const OPTIONS: &[[&str; 2]] = &[
@@ -39,7 +39,7 @@ const OPTIONS: &[[&str; 2]] = &[
 
 fn help() -> String {
     let rows = |r: &[[&str; 2]]| table(&r.iter().map(|c| c.iter().map(|s| s.to_string()).collect()).collect::<Vec<_>>(), "  ").join("\n");
-    format!("ast {}\n\n{}\n\n{}\n\n{}\n\nletters combine: ast -iby nano, ast -ua, ast -ry nano", env!("CARGO_PKG_VERSION"), rows(MODES), rows(OPTIONS), rows(WORDS))
+    format!("ast {}\n\n{}\n\n{}\n\n{}", env!("CARGO_PKG_VERSION"), rows(MODES), rows(OPTIONS), rows(WORDS))
 }
 
 // ------------------------------------------------------------ terminal
@@ -215,7 +215,20 @@ pub fn run() -> i32 {
 
 /// The one action of a line such as `-iby nano`: the letters pick it, the rest are modifiers.
 fn mode(a: &mut Args) -> Result<Option<&'static str>> {
-    let mut chosen: Vec<&'static str> = [("install", "-i"), ("remove", "-r"), ("upgrade", "-u"), ("list", "-l"), ("info", "-q"), ("search", "-s")]
+    let mut chosen: Vec<&'static str> = [
+        ("install", "-i"),
+        ("remove", "-r"),
+        ("upgrade", "-u"),
+        ("list", "-l"),
+        ("info", "-n"),
+        ("info", "-q"),
+        ("search", "-s"),
+        ("verify", "-v"),
+        ("clean", "-c"),
+        ("repo", "--switch"),
+        ("channel", "--channel"),
+        ("init", "--init"),
+    ]
         .into_iter()
         .filter_map(|(word, letter)| a.flag(&[letter]).then_some(word))
         .collect();
@@ -226,7 +239,7 @@ fn mode(a: &mut Args) -> Result<Option<&'static str>> {
     match chosen.as_slice() {
         [] => Ok(None),
         [one] => Ok(Some(one)),
-        _ => Err(Error::Usage("give one of -i -r -u -l -q -s".into())),
+        _ => Err(Error::Usage("give one of -i -r -u -l -n -s -v -c".into())),
     }
 }
 
@@ -361,6 +374,9 @@ mod tests {
         assert_eq!(picked("-ry nano").unwrap(), Some("remove"));
         assert_eq!(picked("-li").unwrap(), Some("list"));
         assert_eq!(picked("-q nano").unwrap(), Some("info"));
+        for (line, want) in [("-n nano", "info"), ("-v", "verify"), ("-c", "clean"), ("--switch", "repo"), ("--channel edge", "channel"), ("--init", "init")] {
+            assert_eq!(picked(line).unwrap(), Some(want), "{line}");
+        }
         assert_eq!(picked("-s x").unwrap(), Some("search"));
         assert_eq!(picked("repo").unwrap(), None);
         assert!(picked("-ir nano").is_err());

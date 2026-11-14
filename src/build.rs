@@ -25,7 +25,7 @@ use std::process::{Command, Stdio};
 pub const SOURCE_DATE_EPOCH: &str = "315532800";
 pub const RECIPE_SUFFIX: &str = ".recipe.toml";
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct SourceSpec {
     /// Absolute URL, or a path relative to the repository URL.
     #[serde(default)]
@@ -159,14 +159,18 @@ pub struct Recipe {
     pub release: Release,
     pub source: SourceSpec,
     pub build: BuildSpec,
+    /// No source and no build: a package that only brings its dependencies.
+    pub meta: bool,
 }
 
 /// File layout: `[package]`, `[source]`, `[build]` and an optional `[release]`.
 #[derive(Deserialize)]
 struct Raw {
     package: RawPackage,
-    source: SourceSpec,
-    build: BuildSpec,
+    #[serde(default)]
+    source: Option<SourceSpec>,
+    #[serde(default)]
+    build: Option<BuildSpec>,
     #[serde(default)]
     release: Release,
 }
@@ -209,7 +213,10 @@ impl Recipe {
     pub fn parse(text: &str) -> Result<Recipe> {
         let raw: Raw = toml::from_str(text).map_err(|e| Error::Parse(format!("recipe: {e}")))?;
         let p = raw.package;
-        let version = match (p.version, &raw.source.git, &raw.source.commit) {
+        let meta = raw.source.is_none() && raw.build.is_none();
+        let source = raw.source.unwrap_or_default();
+        let build = raw.build.unwrap_or_default();
+        let version = match (p.version, &source.git, &source.commit) {
             (Some(v), _, _) => v,
             (None, Some(_), Some(c)) if c.len() >= 8 && c.is_ascii() => Version::new(&format!("git.{}", &c[..8]))?,
             _ => return Err(Error::Parse(format!("recipe {}: `version` is needed unless the source is git", p.name))),
@@ -228,8 +235,9 @@ impl Recipe {
             config_files: p.config_files,
             notice: p.notice,
             release: raw.release,
-            source: raw.source,
-            build: raw.build,
+            source,
+            build,
+            meta,
         };
         r.validate()?;
         Ok(r)
@@ -248,6 +256,12 @@ impl Recipe {
             if a != "any" && !KNOWN_ARCHES.contains(&a.as_str()) {
                 return Err(Error::Parse(format!("recipe {}: unknown architecture {a:?}", self.name)));
             }
+        }
+        if self.meta {
+            if self.depends.is_empty() {
+                return Err(Error::Parse(format!("recipe {}: a package without source and build needs `depends`", self.name)));
+            }
+            return Ok(());
         }
         if self.source.git.is_some() {
             let c = self.source.commit.as_deref().unwrap_or("");
@@ -445,7 +459,11 @@ fn build_inner(job: &BuildJob, work: &Path, log_path: &Path) -> Result<PathBuf> 
     for d in [&src_dir, &dest_dir] {
         crate::util::mkdir_private(d, 0o755)?;
     }
-    if let (Some(git), Some(commit)) = (&r.source.git, &r.source.commit) {
+    if r.meta {
+        let marker = dest_dir.join("usr/share/ast/meta");
+        std::fs::create_dir_all(&marker).ctx("cannot create", &marker)?;
+        std::fs::write(marker.join(r.name.as_str()), format!("{}\n", r.name)).ctx("cannot write", &marker)?;
+    } else if let (Some(git), Some(commit)) = (&r.source.git, &r.source.commit) {
         fetch_git(git, commit, work, &src_dir)?;
     } else if r.source.plain {
         let url = r.source_url(job.repo_url)?;
@@ -546,9 +564,10 @@ fn build_inner(job: &BuildJob, work: &Path, log_path: &Path) -> Result<PathBuf> 
         origin: Origin {
             builder: Some(format!("ast-pm {}", env!("CARGO_PKG_VERSION"))),
             built_at: Some(crate::util::now()),
-            source_url: Some(match &r.source.git {
-                Some(g) => g.clone(),
-                None => r.source_url(job.repo_url)?,
+            source_url: Some(match (&r.source.git, r.meta) {
+                (Some(g), _) => g.clone(),
+                (None, true) => String::new(),
+                (None, false) => r.source_url(job.repo_url)?,
             }),
             source_sha256: Some(r.source.commit.clone().unwrap_or_else(|| r.source.sha256.clone())),
         },
@@ -771,6 +790,14 @@ build = "true"
             .replace("sha256 = \"", "#sha256 = \"");
         assert_eq!(Recipe::parse(&git).unwrap().version.as_str(), "git.01234567");
         assert!(Recipe::parse(&RECIPE.replace("version = \"1.0\"\n", "")).is_err());
+    }
+
+    #[test]
+    fn a_meta_package_has_no_source_and_needs_depends() {
+        let meta = "[package]\nname = \"desk\"\nversion = \"1\"\narch = [\"x86_64\"]\ndepends = [\"hello\"]\n";
+        let r = Recipe::parse(meta).unwrap();
+        assert!(r.meta && r.build.phases().is_empty());
+        assert!(Recipe::parse(&meta.replace("depends = [\"hello\"]\n", "")).is_err());
     }
 
     #[test]
